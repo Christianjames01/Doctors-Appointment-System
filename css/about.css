@@ -1,0 +1,54 @@
+body {
+        
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #8BC53F;
+  color: white;
+}
+.navbar {
+display: flex;
+justify-content: space-between;
+align-items: center;
+background-color: white;
+padding: 20px 50px;
+box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.brand {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+
+.navbar img.logo {
+height: 70px;
+}
+
+.clinic-name {
+font-size: 30px;
+font-weight: bold;
+color: #000000;
+}
+
+.nav-links {
+display: flex;
+gap: 30px;
+align-items: center;
+color: #8BC53F;
+
+}
+.nav-links a {
+  text-decoration: none;
+  color: black;
+  font-size: 15px;
+  font-weight: 500;
+  position: relative;
+  transition: color 0.3s ease;
+
+}
+.nav-links a:hover {
+text-decoration: none;
+color: #8BC53f;
+font-size: 15px;
+font-weight: 500;
+
+}

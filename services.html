@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Services - Dr. Dental Care Center</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* Navigation */
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .clinic-name {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Page Header */
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 5%;
+            text-align: center;
+        }
+
+        .page-header h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        /* Services Section */
+        .services-section {
+            padding: 4rem 5%;
+            background: #f5f7fa;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .service-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .service-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .service-card h3 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .service-card p {
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 1rem;
+        }
+
+        .service-price {
+            color: #764ba2;
+            font-weight: bold;
+            font-size: 1.3rem;
+            margin-top: 1rem;
+        }
+
+        .book-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.8rem 2rem;
+            border-radius: 25px;
+            text-decoration: none;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .book-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Footer */
+        .footer {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 5%;
+            text-align: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .page-header h1 {
+                font-size: 2rem;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="navbar">
+        <div class="brand">
+            <img src="img/images.png" alt="Dr. Dental Care Logo" class="logo">
+            <span class="clinic-name">Dr. Dental Clinic Center</span>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="services.html">Services</a>
+            <a href="about.html">About</a>
+            <a href="login.php">Login</a>
+        </nav>
+    </header>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <h1>Our Services</h1>
+        <p>Comprehensive dental care tailored to your needs</p>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services-section">
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-icon">🦷</div>
+                <h3>General Dentistry</h3>
+                <p>Regular check-ups, cleanings, and preventive care to maintain your oral health. Our comprehensive examinations ensure early detection of any issues.</p>
+                <div class="service-price">Starting at ₱1,500</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">✨</div>
+                <h3>Teeth Whitening</h3>
+                <p>Professional whitening treatments to brighten your smile. Safe, effective, and noticeable results in just one session.</p>
+                <div class="service-price">Starting at ₱5,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">🔧</div>
+                <h3>Dental Implants</h3>
+                <p>Permanent solution for missing teeth. Natural-looking and functioning just like your real teeth with long-lasting results.</p>
+                <div class="service-price">Starting at ₱25,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">👨‍⚕️</div>
+                <h3>Orthodontics</h3>
+                <p>Braces and aligners to straighten your teeth and improve your bite. Traditional metal braces and clear aligners available.</p>
+                <div class="service-price">Starting at ₱30,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">🌟</div>
+                <h3>Cosmetic Dentistry</h3>
+                <p>Veneers, bonding, and smile makeovers to enhance your appearance. Transform your smile with our aesthetic treatments.</p>
+                <div class="service-price">Starting at ₱8,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">🚨</div>
+                <h3>Emergency Care</h3>
+                <p>Immediate treatment for dental emergencies. Available during clinic hours for urgent dental problems.</p>
+                <div class="service-price">Call for Pricing</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">👶</div>
+                <h3>Pediatric Dentistry</h3>
+                <p>Specialized care for children's dental health. Making dental visits fun and comfortable for your little ones.</p>
+                <div class="service-price">Starting at ₱1,200</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">🦴</div>
+                <h3>Root Canal Treatment</h3>
+                <p>Save infected or damaged teeth with our expert root canal therapy. Pain-free procedure with modern techniques.</p>
+                <div class="service-price">Starting at ₱4,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-icon">🎯</div>
+                <h3>Oral Surgery</h3>
+                <p>Tooth extractions, wisdom teeth removal, and other surgical procedures performed by experienced professionals.</p>
+                <div class="service-price">Starting at ₱3,000</div>
+                <a href="login.php" class="book-btn">Book Appointment</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2024 Dr. Dental Clinic Center. All rights reserved.</p>
+        <p>Your Smile is Our Priority</p>
+    </footer>
+</body>
+</html>
