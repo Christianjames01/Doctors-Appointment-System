@@ -1,3 +1,37 @@
+<?php
+// FIX: session_start() and header() must be called before any HTML output.
+
+session_start();
+
+// Check login and user type
+if (!isset($_SESSION["user"]) || $_SESSION["user"] == "" || $_SESSION['usertype'] != 'p') {
+    header("location: ../login.php");
+    exit();
+}
+
+// Ensure your connection.php has NO spaces or newlines before its opening <?php tag.
+include("../connection.php");
+
+$useremail = $_SESSION["user"];
+
+// SECURE FIX: Using prepared statement for fetching user details
+$stmt = $database->prepare("SELECT * FROM patient WHERE pemail = ?");
+$stmt->bind_param("s", $useremail);
+$stmt->execute();
+$userrow = $stmt->get_result();
+$userfetch = $userrow->fetch_assoc();
+
+// Check if user was found
+if (!$userfetch) {
+    header("location: ../logout.php");
+    exit();
+}
+
+$userid = $userfetch["pid"];
+$username = $userfetch["pname"];
+
+$today = date('Y-m-d');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +41,7 @@
     <title>All Doctors - Dr. Dental Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* [CSS from original file is maintained for continuity] */
         * {
             margin: 0;
             padding: 0;
@@ -32,7 +67,6 @@
             color: var(--text-dark);
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             left: 0;
@@ -166,14 +200,12 @@
             box-shadow: 0 8px 20px rgba(245, 101, 101, 0.3);
         }
 
-        /* Main Content */
         .main-content {
             margin-left: 280px;
             min-height: 100vh;
             padding: 30px;
         }
 
-        /* Top Bar */
         .top-bar {
             background: var(--white);
             padding: 25px 30px;
@@ -217,7 +249,6 @@
             justify-content: flex-end;
         }
 
-        /* Search Section */
         .search-section {
             background: var(--white);
             padding: 35px;
@@ -276,7 +307,6 @@
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
         }
 
-        /* Doctors Grid */
         .doctors-section {
             background: var(--white);
             padding: 30px;
@@ -410,7 +440,6 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -452,7 +481,6 @@
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
         }
 
-        /* Modal */
         .overlay {
             position: fixed;
             top: 0;
@@ -559,7 +587,6 @@
             margin-top: 25px;
         }
 
-        /* Responsive */
         @media (max-width: 1024px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -596,30 +623,6 @@
     </style>
 </head>
 <body>
-    <?php
-    session_start();
-
-    if(isset($_SESSION["user"])){
-        if(($_SESSION["user"])=="" or $_SESSION['usertype']!='p'){
-            header("location: ../login.php");
-        }else{
-            $useremail=$_SESSION["user"];
-        }
-    }else{
-        header("location: ../login.php");
-    }
-
-    include("../connection.php");
-    $userrow = $database->query("select * from patient where pemail='$useremail'");
-    $userfetch=$userrow->fetch_assoc();
-    $userid= $userfetch["pid"];
-    $username=$userfetch["pname"];
-
-    date_default_timezone_set('Asia/Manila');
-    $today = date('Y-m-d');
-    ?>
-
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
             <div class="logo-container">
@@ -634,8 +637,8 @@
                     <?php echo strtoupper(substr($username, 0, 2)); ?>
                 </div>
                 <div class="user-info">
-                    <h3><?php echo substr($username, 0, 15); ?></h3>
-                    <p><?php echo substr($useremail, 0, 20); ?></p>
+                    <h3><?php echo htmlspecialchars(substr($username, 0, 15)); ?></h3>
+                    <p><?php echo htmlspecialchars(substr($useremail, 0, 20)); ?></p>
                 </div>
             </div>
         </div>
@@ -678,9 +681,7 @@
         </button>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
         <div class="top-bar">
             <div class="welcome-section">
                 <h1>Our Medical Experts 👨‍⚕️</h1>
@@ -695,7 +696,6 @@
             </div>
         </div>
 
-        <!-- Search Section -->
         <div class="search-section">
             <h2>Find a Doctor</h2>
             <p>Search by doctor name or email address</p>
@@ -709,11 +709,16 @@
                 >
                 <datalist id="doctors">
                     <?php
-                    $list11 = $database->query("select docname, docemail from doctor;");
+                    // SECURE FIX: Using prepared statements for data list
+                    $list_stmt = $database->prepare("SELECT docname, docemail FROM doctor");
+                    $list_stmt->execute();
+                    $list11 = $list_stmt->get_result();
+
                     while($row00 = $list11->fetch_assoc()){
-                        echo "<option value='".$row00["docname"]."'>";
-                        echo "<option value='".$row00["docemail"]."'>";
+                        echo "<option value='".htmlspecialchars($row00["docname"])."'>";
+                        echo "<option value='".htmlspecialchars($row00["docemail"])."'>";
                     }
+                    $list_stmt->close();
                     ?>
                 </datalist>
                 <button type="submit" class="search-btn">
@@ -722,20 +727,33 @@
             </form>
         </div>
 
-        <!-- Doctors Section -->
         <div class="doctors-section">
             <div class="section-header">
                 <?php
-                if($_POST){
-                    $keyword=$_POST["search"];
-                    $sqlmain= "select * from doctor where docemail='$keyword' or docname='$keyword' or docname like '$keyword%' or docname like '%$keyword' or docname like '%$keyword%'";
-                }else{
-                    $sqlmain= "select * from doctor order by docid desc";
+                $result = null;
+                $stmt_search = null;
+
+                if($_POST && isset($_POST["search"]) && !empty($_POST["search"])){
+                    $keyword = trim($_POST["search"]);
+                    $search_query = "%" . $keyword . "%";
+                    
+                    // SECURE FIX: Using prepared statement for the complex search query (SQL INJECTION FIX)
+                    $sqlmain = "SELECT * FROM doctor 
+                                WHERE docemail = ? OR docname = ? 
+                                OR docname LIKE ? OR docname LIKE ? OR docname LIKE ?";
+                    
+                    $stmt_search = $database->prepare($sqlmain);
+                    // 'sssss' for 5 string parameters
+                    $stmt_search->bind_param("sssss", $keyword, $keyword, $search_query, $search_query, $search_query);
+                    $stmt_search->execute();
+                    $result = $stmt_search->get_result();
+                } else {
+                    // Default view if no search is performed
+                    $sqlmain = "SELECT * FROM doctor ORDER BY docid DESC";
+                    $result = $database->query($sqlmain);
                 }
-                
-                $result= $database->query($sqlmain);
                 ?>
-                <h2>All Doctors (<?php echo $result->num_rows; ?>)</h2>
+                <h2>All Doctors (<?php echo $result ? $result->num_rows : 0; ?>)</h2>
             </div>
 
             <?php
@@ -758,16 +776,21 @@
                     $email = $row["docemail"];
                     $spe = $row["specialties"];
                     
-                    $spcil_res = $database->query("select sname from specialties where id='$spe'");
+                    // SECURE FIX: Using prepared statement to fetch specialty name
+                    $spcil_stmt = $database->prepare("SELECT sname FROM specialties WHERE id = ?");
+                    $spcil_stmt->bind_param("i", $spe);
+                    $spcil_stmt->execute();
+                    $spcil_res = $spcil_stmt->get_result();
                     $spcil_array = $spcil_res->fetch_assoc();
-                    $spcil_name = $spcil_array["sname"];
+                    $spcil_name = $spcil_array ? $spcil_array["sname"] : "Unknown Specialty";
+                    $spcil_stmt->close();
                     
                     $initials = strtoupper(substr($name, 0, 2));
                     
                     echo '
                     <div class="doctor-card">
                         <div class="doctor-header">
-                            <div class="doctor-avatar">'.$initials.'</div>
+                            <div class="doctor-avatar">'.htmlspecialchars($initials).'</div>
                             <div class="doctor-info">
                                 <h3>'.htmlspecialchars(substr($name, 0, 30)).'</h3>
                                 <p><i class="fas fa-envelope"></i> '.htmlspecialchars(substr($email, 0, 25)).'</p>
@@ -789,66 +812,83 @@
                 
                 echo '</div>';
             }
+            // Close the search statement if it was used
+            if ($stmt_search) {
+                $stmt_search->close();
+            }
             ?>
         </div>
     </main>
 
     <?php
-    if($_GET){
-        $id = $_GET["id"];
+    if($_GET && isset($_GET["id"]) && isset($_GET["action"])){
+        $id = intval($_GET["id"]); // Ensure $id is treated as an integer
         $action = $_GET["action"];
         
         if($action == 'view'){
-            $sqlmain = "select * from doctor where docid='$id'";
-            $result = $database->query($sqlmain);
-            $row = $result->fetch_assoc();
-            $name = $row["docname"];
-            $email = $row["docemail"];
-            $spe = $row["specialties"];
+            // SECURE FIX: Using prepared statement for doctor details
+            $stmt_view = $database->prepare("SELECT * FROM doctor WHERE docid = ?");
+            $stmt_view->bind_param("i", $id);
+            $stmt_view->execute();
+            $result_view = $stmt_view->get_result();
             
-            $spcil_res = $database->query("select sname from specialties where id='$spe'");
-            $spcil_array = $spcil_res->fetch_assoc();
-            $spcil_name = $spcil_array["sname"];
-            $nic = $row['docnic'];
-            $tele = $row['doctel'];
+            if ($result_view->num_rows > 0) {
+                $row = $result_view->fetch_assoc();
+                $name = $row["docname"];
+                $email = $row["docemail"];
+                $spe = $row["specialties"];
+                
+                // SECURE FIX: Using prepared statement to fetch specialty name
+                $spcil_stmt_popup = $database->prepare("SELECT sname FROM specialties WHERE id = ?");
+                $spcil_stmt_popup->bind_param("i", $spe);
+                $spcil_stmt_popup->execute();
+                $spcil_res_popup = $spcil_stmt_popup->get_result();
+                $spcil_array_popup = $spcil_res_popup->fetch_assoc();
+                $spcil_name = $spcil_array_popup ? $spcil_array_popup["sname"] : "N/A";
+                $spcil_stmt_popup->close();
+
+                $nic = $row['docnic'];
+                $tele = $row['doctel'];
             
-            echo '
-            <div class="overlay">
-                <div class="popup">
-                    <a class="close" href="doctors.php">&times;</a>
-                    <h2><i class="fas fa-user-md" style="color: var(--primary-color);"></i> Doctor Details</h2>
-                    <div class="popup-content">
-                        <div class="detail-row">
-                            <div class="detail-label"><i class="fas fa-user"></i> Name:</div>
-                            <div class="detail-value">'.htmlspecialchars($name).'</div>
+                echo '
+                <div class="overlay">
+                    <div class="popup">
+                        <a class="close" href="doctors.php">&times;</a>
+                        <h2><i class="fas fa-user-md" style="color: var(--primary-color);"></i> Doctor Details</h2>
+                        <div class="popup-content">
+                            <div class="detail-row">
+                                <div class="detail-label"><i class="fas fa-user"></i> Name:</div>
+                                <div class="detail-value">'.htmlspecialchars($name).'</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label"><i class="fas fa-envelope"></i> Email:</div>
+                                <div class="detail-value">'.htmlspecialchars($email).'</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label"><i class="fas fa-id-card"></i> NIC:</div>
+                                <div class="detail-value">'.htmlspecialchars($nic).'</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label"><i class="fas fa-phone"></i> Telephone:</div>
+                                <div class="detail-value">'.htmlspecialchars($tele).'</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label"><i class="fas fa-stethoscope"></i> Specialty:</div>
+                                <div class="detail-value">'.htmlspecialchars($spcil_name).'</div>
+                            </div>
                         </div>
-                        <div class="detail-row">
-                            <div class="detail-label"><i class="fas fa-envelope"></i> Email:</div>
-                            <div class="detail-value">'.htmlspecialchars($email).'</div>
-                        </div>
-                        <div class="detail-row">
-                            <div class="detail-label"><i class="fas fa-id-card"></i> NIC:</div>
-                            <div class="detail-value">'.htmlspecialchars($nic).'</div>
-                        </div>
-                        <div class="detail-row">
-                            <div class="detail-label"><i class="fas fa-phone"></i> Telephone:</div>
-                            <div class="detail-value">'.htmlspecialchars($tele).'</div>
-                        </div>
-                        <div class="detail-row">
-                            <div class="detail-label"><i class="fas fa-stethoscope"></i> Specialty:</div>
-                            <div class="detail-value">'.htmlspecialchars($spcil_name).'</div>
+                        <div class="popup-actions">
+                            <a href="doctors.php" class="action-btn">
+                                <i class="fas fa-check"></i> OK
+                            </a>
                         </div>
                     </div>
-                    <div class="popup-actions">
-                        <a href="doctors.php" class="action-btn">
-                            <i class="fas fa-check"></i> OK
-                        </a>
-                    </div>
-                </div>
-            </div>';
+                </div>';
+            }
+            $stmt_view->close();
             
         } elseif($action == 'session'){
-            $name = $_GET["name"];
+            $name = isset($_GET["name"]) ? $_GET["name"] : "Selected Doctor";
             echo '
             <div class="overlay">
                 <div class="popup">
@@ -857,11 +897,11 @@
                     <div class="popup-content">
                         <p style="font-size: 16px; color: var(--text-light); line-height: 1.6;">
                             You want to view all sessions by<br>
-                            <strong style="color: var(--text-dark);">'.htmlspecialchars(substr($name, 0, 40)).'</strong>
+                            <strong style="color: var(--text-dark);">' . htmlspecialchars(substr($name, 0, 40)) . '</strong>
                         </p>
                     </div>
                     <form action="schedule.php" method="post">
-                        <input type="hidden" name="search" value="'.htmlspecialchars($name).'">
+                        <input type="hidden" name="search" value="' . htmlspecialchars($name) . '">
                         <div class="popup-actions">
                             <a href="doctors.php" class="action-button btn-view" style="text-decoration: none;">
                                 <i class="fas fa-times"></i> Cancel

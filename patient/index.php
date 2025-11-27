@@ -1,3 +1,57 @@
+<?php
+// FIX: session_start() and header() must be called before any HTML output.
+
+session_start();
+
+// Check login and user type
+if (!isset($_SESSION["user"]) || $_SESSION["user"] == "" || $_SESSION['usertype'] != 'p') {
+    header("location: ../login.php");
+    exit();
+}
+
+// Ensure your connection.php has NO spaces or newlines before its opening <?php tag.
+include("../connection.php");
+
+$useremail = $_SESSION["user"];
+
+// SECURE FIX: Using prepared statement for fetching user details
+$stmt = $database->prepare("SELECT * FROM patient WHERE pemail = ?");
+$stmt->bind_param("s", $useremail);
+$stmt->execute();
+$userrow = $stmt->get_result();
+$userfetch = $userrow->fetch_assoc();
+
+// Check if user was found
+if (!$userfetch) {
+    header("location: ../logout.php");
+    exit();
+}
+
+$userid = $userfetch["pid"];
+$username = $userfetch["pname"];
+
+// Date for upcoming appointments check
+$today = date('Y-m-d');
+
+// Fetch stats counts securely
+$patientrow = $database->query("SELECT * FROM patient;");
+$doctorrow = $database->query("SELECT * FROM doctor;");
+
+$stmt_app = $database->prepare("SELECT COUNT(*) as count FROM appointment WHERE appodate >= ?");
+$stmt_app->bind_param("s", $today);
+$stmt_app->execute();
+$appointmentrow = $stmt_app->get_result()->fetch_assoc();
+$new_bookings_count = $appointmentrow['count'];
+
+$stmt_sch = $database->prepare("SELECT COUNT(*) as count FROM schedule WHERE scheduledate = ?");
+$stmt_sch->bind_param("s", $today);
+$stmt_sch->execute();
+$schedulerow = $stmt_sch->get_result()->fetch_assoc();
+$today_sessions_count = $schedulerow['count'];
+
+// Close the patient details statement
+$stmt->close();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +61,7 @@
     <title>Patient Dashboard - Dr. Dental Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* [CSS from original file is maintained for continuity] */
         * {
             margin: 0;
             padding: 0;
@@ -36,7 +91,6 @@
             min-height: 100vh;
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             left: 0;
@@ -176,14 +230,12 @@
             box-shadow: 0 8px 20px rgba(245, 101, 101, 0.4);
         }
 
-        /* Main Content */
         .main-content {
             margin-left: 280px;
             min-height: 100vh;
             padding: 30px;
         }
 
-        /* Top Bar */
         .top-bar {
             background: var(--white);
             padding: 30px 35px;
@@ -241,7 +293,6 @@
             color: var(--primary-color);
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -318,7 +369,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Quick Actions */
         .quick-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -372,7 +422,6 @@
             color: var(--text-light);
         }
 
-        /* Appointments Section */
         .appointments-section {
             background: var(--white);
             padding: 35px;
@@ -470,7 +519,6 @@
             border: 1px solid #e74c3c;
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 80px 20px;
@@ -520,7 +568,6 @@
             box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
         }
 
-        /* Responsive */
         @media (max-width: 1024px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -570,35 +617,6 @@
     </style>
 </head>
 <body>
-    <?php
-    session_start();
-
-    if(isset($_SESSION["user"])){
-        if(($_SESSION["user"])=="" or $_SESSION['usertype']!='p'){
-            header("location: ../login.php");
-        }else{
-            $useremail=$_SESSION["user"];
-        }
-    }else{
-        header("location: ../login.php");
-    }
-
-    include("../connection.php");
-    $userrow = $database->query("select * from patient where pemail='$useremail'");
-    $userfetch=$userrow->fetch_assoc();
-    $userid= $userfetch["pid"];
-    $username=$userfetch["pname"];
-
-    date_default_timezone_set('Asia/Manila');
-    $today = date('Y-m-d');
-
-    $patientrow = $database->query("select * from patient;");
-    $doctorrow = $database->query("select * from doctor;");
-    $appointmentrow = $database->query("select * from appointment where appodate>='$today';");
-    $schedulerow = $database->query("select * from schedule where scheduledate='$today';");
-    ?>
-
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
             <div class="logo-container">
@@ -613,8 +631,8 @@
                     <?php echo strtoupper(substr($username, 0, 2)); ?>
                 </div>
                 <div class="user-info">
-                    <h3><?php echo substr($username, 0, 15); ?></h3>
-                    <p><?php echo substr($useremail, 0, 20); ?></p>
+                    <h3><?php echo htmlspecialchars(substr($username, 0, 15)); ?></h3>
+                    <p><?php echo htmlspecialchars(substr($useremail, 0, 20)); ?></p>
                 </div>
             </div>
         </div>
@@ -657,9 +675,7 @@
         </button>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
         <div class="top-bar">
             <div class="welcome-section">
                 <h1>Welcome back, <?php echo htmlspecialchars($username); ?>! 👋</h1>
@@ -674,7 +690,6 @@
             </div>
         </div>
 
-        <!-- Stats Grid -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon doctors">
@@ -688,9 +703,6 @@
 
             <div class="stat-card">
                 <div class="stat-icon patients">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="stat-info">
                     <h3><?php echo $patientrow->num_rows; ?></h3>
                     <p>All Patients</p>
                 </div>
@@ -701,8 +713,8 @@
                     <i class="fas fa-book-medical"></i>
                 </div>
                 <div class="stat-info">
-                    <h3><?php echo $appointmentrow->num_rows; ?></h3>
-                    <p>New Bookings</p>
+                    <h3><?php echo $new_bookings_count; ?></h3>
+                    <p>Upcoming Bookings</p>
                 </div>
             </div>
 
@@ -711,13 +723,12 @@
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-info">
-                    <h3><?php echo $schedulerow->num_rows; ?></h3>
+                    <h3><?php echo $today_sessions_count; ?></h3>
                     <p>Today's Sessions</p>
                 </div>
             </div>
         </div>
 
-        <!-- Quick Actions -->
         <div class="quick-actions">
             <a href="doctors.php" class="action-card">
                 <div class="action-icon find">
@@ -760,21 +771,25 @@
             </a>
         </div>
 
-        <!-- Upcoming Appointments -->
         <div class="appointments-section">
             <div class="section-header">
                 <h2><i class="fas fa-calendar-check"></i> Your Upcoming Appointments</h2>
             </div>
 
             <?php
-            $sqlmain = "select * from schedule 
-                       inner join appointment on schedule.scheduleid=appointment.scheduleid 
-                       inner join patient on patient.pid=appointment.pid 
-                       inner join doctor on schedule.docid=doctor.docid  
-                       where patient.pid=$userid and schedule.scheduledate>='$today' 
-                       order by schedule.scheduledate asc";
+            // SECURE FIX: Using prepared statement for fetching patient appointments
+            $sqlmain = "SELECT * FROM schedule 
+                       INNER JOIN appointment ON schedule.scheduleid = appointment.scheduleid 
+                       INNER JOIN patient ON patient.pid = appointment.pid 
+                       INNER JOIN doctor ON schedule.docid = doctor.docid  
+                       WHERE patient.pid = ? AND schedule.scheduledate >= ? 
+                       ORDER BY schedule.scheduledate ASC";
             
-            $result = $database->query($sqlmain);
+            $stmt = $database->prepare($sqlmain);
+            // 'is' means integer for $userid, string for $today
+            $stmt->bind_param("is", $userid, $today); 
+            $stmt->execute();
+            $result = $stmt->get_result();
 
             if($result->num_rows == 0){
                 echo '
@@ -820,6 +835,8 @@
                     </tbody>
                 </table>';
             }
+            // Close the appointments statement
+            $stmt->close();
             ?>
         </div>
     </main>
