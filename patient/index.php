@@ -1,27 +1,21 @@
 <?php
-// FIX: session_start() and header() must be called before any HTML output.
-
 session_start();
 
-// Check login and user type
 if (!isset($_SESSION["user"]) || $_SESSION["user"] == "" || $_SESSION['usertype'] != 'p') {
     header("location: ../login.php");
     exit();
 }
 
-// Ensure your connection.php has NO spaces or newlines before its opening <?php tag.
 include("../connection.php");
 
 $useremail = $_SESSION["user"];
 
-// SECURE FIX: Using prepared statement for fetching user details
 $stmt = $database->prepare("SELECT * FROM patient WHERE pemail = ?");
 $stmt->bind_param("s", $useremail);
 $stmt->execute();
 $userrow = $stmt->get_result();
 $userfetch = $userrow->fetch_assoc();
 
-// Check if user was found
 if (!$userfetch) {
     header("location: ../logout.php");
     exit();
@@ -30,10 +24,14 @@ if (!$userfetch) {
 $userid = $userfetch["pid"];
 $username = $userfetch["pname"];
 
-// Date for upcoming appointments check
+// Profile picture support
+if (!isset($userfetch['profile_picture'])) {
+    $userfetch['profile_picture'] = null;
+}
+$profile_picture = $userfetch['profile_picture'];
+
 $today = date('Y-m-d');
 
-// Fetch stats counts securely
 $patientrow = $database->query("SELECT * FROM patient;");
 $doctorrow = $database->query("SELECT * FROM doctor;");
 
@@ -49,19 +47,16 @@ $stmt_sch->execute();
 $schedulerow = $stmt_sch->get_result()->fetch_assoc();
 $today_sessions_count = $schedulerow['count'];
 
-// Close the patient details statement
 $stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patient Dashboard - Dr. Dental Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* [CSS from original file is maintained for continuity] */
         * {
             margin: 0;
             padding: 0;
@@ -158,6 +153,22 @@ $stmt->close();
             font-size: 20px;
             font-weight: 600;
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-avatar-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
         }
 
         .user-info h3 {
@@ -497,28 +508,6 @@ $stmt->close();
             background-clip: text;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-confirmed {
-            background: linear-gradient(135deg, #43e97b15 0%, #38f9d715 100%);
-            color: #27ae60;
-            border: 1px solid #27ae60;
-        }
-
-        .status-pending {
-            background: linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%);
-            color: #e74c3c;
-            border: 1px solid #e74c3c;
-        }
-
         .empty-state {
             text-align: center;
             padding: 80px 20px;
@@ -628,7 +617,11 @@ $stmt->close();
 
             <div class="user-profile">
                 <div class="user-avatar">
-                    <?php echo strtoupper(substr($username, 0, 2)); ?>
+                    <?php if (!empty($profile_picture) && file_exists($profile_picture)): ?>
+                        <img src="<?php echo htmlspecialchars($profile_picture); ?>" alt="Profile Picture">
+                    <?php else: ?>
+                        <span class="user-avatar-text"><?php echo strtoupper(substr($username, 0, 2)); ?></span>
+                    <?php endif; ?>
                 </div>
                 <div class="user-info">
                     <h3><?php echo htmlspecialchars(substr($username, 0, 15)); ?></h3>
@@ -645,12 +638,6 @@ $stmt->close();
                 </a>
             </div>
             <div class="nav-item">
-                <a href="doctors.php" class="nav-link">
-                    <i class="fas fa-user-md"></i>
-                    <span>All Doctors</span>
-                </a>
-            </div>
-            <div class="nav-item">
                 <a href="schedule.php" class="nav-link">
                     <i class="fas fa-calendar-alt"></i>
                     <span>Scheduled Sessions</span>
@@ -660,6 +647,12 @@ $stmt->close();
                 <a href="booking.php" class="nav-link">
                     <i class="fas fa-calendar-check"></i>
                     <span>My Bookings</span>
+                </a>
+            </div>
+             <div class="nav-item">
+                <a href="appointment-history.php" class="nav-link">
+                    <i class="fas fa-history"></i>
+                    <span>Appointment History</span>
                 </a>
             </div>
             <div class="nav-item">
@@ -703,6 +696,9 @@ $stmt->close();
 
             <div class="stat-card">
                 <div class="stat-icon patients">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
                     <h3><?php echo $patientrow->num_rows; ?></h3>
                     <p>All Patients</p>
                 </div>
@@ -777,7 +773,6 @@ $stmt->close();
             </div>
 
             <?php
-            // SECURE FIX: Using prepared statement for fetching patient appointments
             $sqlmain = "SELECT * FROM schedule 
                        INNER JOIN appointment ON schedule.scheduleid = appointment.scheduleid 
                        INNER JOIN patient ON patient.pid = appointment.pid 
@@ -786,7 +781,6 @@ $stmt->close();
                        ORDER BY schedule.scheduledate ASC";
             
             $stmt = $database->prepare($sqlmain);
-            // 'is' means integer for $userid, string for $today
             $stmt->bind_param("is", $userid, $today); 
             $stmt->execute();
             $result = $stmt->get_result();
@@ -831,11 +825,8 @@ $stmt->close();
                     </tr>';
                 }
                 
-                echo '
-                    </tbody>
-                </table>';
+                echo '</tbody></table>';
             }
-            // Close the appointments statement
             $stmt->close();
             ?>
         </div>

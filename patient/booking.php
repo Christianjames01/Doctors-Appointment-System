@@ -1,5 +1,6 @@
 <?php
 ob_start();
+date_default_timezone_set('Asia/Manila');
 session_start();
 
 // Check if user is logged in and is a patient
@@ -141,13 +142,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
                 // Get service price
                 $service_price = $service_prices[$service_type] ?? 1000;
                 
-                // Insert appointment with approved status and unpaid payment status
-                $insert_query = "INSERT INTO appointment (apponum, pid, appodate, service_type, status, amount, payment_status) 
-                                 VALUES ('$appointment_number', '$patient_id', '$appodate', '$service_type', 'approved', '$service_price', 'unpaid')";
-                
-                if ($database->query($insert_query)) {
-                    // Get the newly created appointment ID
-                    $new_appointment_id = $database->insert_id;
+              $insert_query = "INSERT INTO appointment (apponum, pid, appodate, service_type, status, amount, payment_status) 
+                 VALUES ('$appointment_number', '$patient_id', '$appodate', '$service_type', 'pending', '$service_price', 'unpaid')";
+
+if ($database->query($insert_query)) {
+    // Get the newly created appointment ID
+    $new_appointment_id = $database->insert_id;
                     
                     // Clear any output buffer and redirect to payment
                     ob_end_clean();
@@ -887,9 +887,9 @@ $appointments_query = $database->query("
 
         <nav class="nav-menu">
             <div class="nav-item"><a href="index.php" class="nav-link"><i class="fas fa-home"></i><span>Home</span></a></div>
-            <div class="nav-item"><a href="doctors.php" class="nav-link"><i class="fas fa-user-md"></i><span>All Doctors</span></a></div>
             <div class="nav-item"><a href="schedule.php" class="nav-link"><i class="fas fa-calendar-alt"></i><span>Scheduled Sessions</span></a></div>
-            <div class="nav-item"><a href="booking.php" class="nav-link active"><i class="fas fa-calendar-plus"></i><span>Book Appointment</span></a></div>
+            <div class="nav-item"><a href="booking.php" class="nav-link active"><i class="fas fa-calendar-plus"></i><span>My Bookings</span></a></div>
+             <div class="nav-item"><a href="appointment-history.php" class="nav-link"><i class="fas fa-history"></i><span>Appointment History</span></a></div>
             <div class="nav-item"><a href="settings.php" class="nav-link"><i class="fas fa-cog"></i><span>Settings</span></a></div>
         </nav>
 

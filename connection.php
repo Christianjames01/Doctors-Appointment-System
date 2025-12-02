@@ -1,13 +1,13 @@
 <?php
 // connection.php - Database Connection File
 
-$host = "localhost";
+$host = "localhost";        
 $username = "root";
 $password = "";
-$database = "edoc";
+$database_name = "edoc";
 
-// Create connection
-$database = new mysqli($host, $username, $password, $database);
+// Create connection (note the port as 5th parameter)
+$database = new mysqli($host, $username, $password, $database_name);
 
 // Check connection
 if ($database->connect_error) {

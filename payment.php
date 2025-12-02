@@ -69,20 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_payment'])) {
         // Update appointment payment status
         $update_query = "UPDATE appointment SET payment_status = 'paid' WHERE appoid = $appointment_id";
         
-        if ($database->query($update_query)) {
-            $success_message = "Payment successful! Your appointment is confirmed.";
-            
-            // Refresh appointment data
-            $appointment_query = $database->query("
-                SELECT a.*, p.pname, p.pemail, p.ptel 
-                FROM appointment a
-                LEFT JOIN patient p ON a.pid = p.pid
-                WHERE a.appoid = $appointment_id AND a.pid = $patient_id
-            ");
-            $appointment = $appointment_query->fetch_assoc();
-        } else {
-            $error_message = "Error processing payment: " . $database->error;
-        }
+        // NEW CODE:
+if ($database->query($update_query)) {
+    $success_message = "Payment successful! Your appointment is now awaiting admin approval.";
+    
+    // Refresh appointment data
+    $appointment_query = $database->query("
+        SELECT a.*, p.pname, p.pemail, p.ptel 
+        FROM appointment a
+        LEFT JOIN patient p ON a.pid = p.pid
+        WHERE a.appoid = $appointment_id AND a.pid = $patient_id
+    ");
+    $appointment = $appointment_query->fetch_assoc();
+}
     }
 }
 ?>
@@ -583,15 +582,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_payment'])) {
                     </h3>
                     
                     <form method="POST" action="">
-                        <div class="payment-methods">
-                            <div class="payment-method">
-                                <input type="radio" name="payment_method" id="cash" value="Cash" required>
-                                <label for="cash">
-                                    <i class="fas fa-money-bill"></i>
-                                    <span>Cash</span>
-                                </label>
-                            </div>
-                            
                             <div class="payment-method">
                                 <input type="radio" name="payment_method" id="gcash" value="GCash" required>
                                 <label for="gcash">

@@ -662,12 +662,6 @@ $result = $database->query($sqlmain);
                 </a>
             </div>
             <div class="nav-item">
-                <a href="doctors.php" class="nav-link">
-                    <i class="fas fa-user-md"></i>
-                    <span>All Doctors</span>
-                </a>
-            </div>
-            <div class="nav-item">
                 <a href="schedule.php" class="nav-link active">
                     <i class="fas fa-calendar-alt"></i>
                     <span>Scheduled Sessions</span>
@@ -677,6 +671,12 @@ $result = $database->query($sqlmain);
                 <a href="booking.php" class="nav-link">
                     <i class="fas fa-calendar-check"></i>
                     <span>My Bookings</span>
+                </a>
+            </div>
+             <div class="nav-item">
+                <a href="appointment-history.php" class="nav-link">
+                    <i class="fas fa-history"></i>
+                    <span>Appointment History</span>
                 </a>
             </div>
             <div class="nav-item">
@@ -921,7 +921,7 @@ $result = $database->query($sqlmain);
                             <a href="booking.php?id=<?php echo $scheduleid; ?>" style="text-decoration: none;">
                                 <button class="book-btn">
                                     <i class="fas fa-calendar-plus"></i>
-                                    Book Appointment
+                                    My Bookings
                                 </button>
                             </a>
                         </div>

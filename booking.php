@@ -84,9 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
                 $service_price = $service_prices[$service_type] ?? 1000;
                 
                 // Insert appointment with approved status and unpaid payment status
-                $insert_query = "INSERT INTO appointment (apponum, pid, appodate, service_type, status, amount, payment_status) 
-                                VALUES ('$appointment_number', '$patient_id', '$appodate', '$service_type', 'approved', '$service_price', 'unpaid')";
-                
+              // CORRECT:
+$insert_query = "INSERT INTO appointment (apponum, pid, appodate, service_type, status, amount, payment_status) 
+                VALUES ('$appointment_number', '$patient_id', '$appodate', '$service_type', 'pending', '$service_price', 'unpaid')";
                 if ($database->query($insert_query)) {
                     // Get the newly created appointment ID
                     $new_appointment_id = $database->insert_id;
@@ -1151,15 +1151,13 @@ $appointments_query = $database->query("
     let selectedTime = null;
     let bookedDates = {};
     
-    // Business hours: 8 AM to 8 PM
+    // FIXED: Business hours 8 AM to 5 PM with correct format (HH:MM)
     const timeSlots = [
         '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-        '11:00', '11:30', '12:00', '12:30', '1:00', '2:30',
-        '3:00', '3:30', '4:00', '4:30', '5:00', '5:30',
-        '6:00', '6:30', '7:00', '7:30', '8:00'
-       
+        '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+        '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
     ];
-    
+
     // Initialize calendar
     function initCalendar() {
         renderCalendar();

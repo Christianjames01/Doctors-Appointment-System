@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set('Asia/Manila');
 require_once '../connection.php';
 
 
@@ -13,55 +14,137 @@ $adminName = htmlspecialchars($_SESSION['username'] ?? 'Administrator', ENT_QUOT
 $success_message = '';
 $error_message = '';
 
-// Handle appointment approval
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['approve_appointment'])) {
     $appo_id = (int)$_POST['appo_id'];
-    $update_query = "UPDATE appointment SET status = 'approved' WHERE appoid = $appo_id";
     
-    if ($database->query($update_query)) {
-        $success_message = "Appointment approved successfully!";
+    // Check status AND payment status BEFORE approving
+    $check_query = $database->query("SELECT status, payment_status FROM appointment WHERE appoid = $appo_id");
+    $data = $check_query->fetch_assoc();
+    
+    if (!$data) {
+        $error_message = "❌ Appointment not found.";
+    } else if ($data['status'] != 'pending') {
+        $error_message = "❌ Only pending appointments can be approved.";
+    } else if ($data['payment_status'] != 'paid') {
+        // CRITICAL: Block approval if payment is NOT paid
+        $error_message = "❌ Cannot approve appointment. Payment must be completed first! Current payment status: " . strtoupper($data['payment_status']);
     } else {
-        $error_message = "Error approving appointment.";
+        // Double-check payment status one more time before approving
+        $verify_payment = $database->query("SELECT payment_status FROM appointment WHERE appoid = $appo_id AND payment_status = 'paid'");
+        
+        if ($verify_payment && $verify_payment->num_rows > 0) {
+            // Payment verified as PAID - safe to approve
+            $update_query = "UPDATE appointment SET status = 'approved' WHERE appoid = $appo_id AND payment_status = 'paid'";
+            
+            if ($database->query($update_query)) {
+                $success_message = "✅ Appointment approved successfully!";
+            } else {
+                $error_message = "❌ Error approving appointment: " . $database->error;
+            }
+        } else {
+            $error_message = "❌ Payment verification failed. Cannot approve unpaid appointment.";
+        }
     }
 }
 
-// Handle appointment rejection
+// UPDATED REJECTION LOGIC - Can reject pending appointments regardless of payment status
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reject_appointment'])) {
     $appo_id = (int)$_POST['appo_id'];
-    $update_query = "UPDATE appointment SET status = 'rejected' WHERE appoid = $appo_id";
     
-    if ($database->query($update_query)) {
-        $success_message = "Appointment rejected.";
+    // Check current status
+    $check = $database->query("SELECT status, payment_status FROM appointment WHERE appoid = $appo_id");
+    $data = $check->fetch_assoc();
+    
+    if (!$data) {
+        $error_message = "❌ Appointment not found.";
+    } else if ($data['status'] != 'pending') {
+        $error_message = "❌ Only pending appointments can be rejected.";
     } else {
-        $error_message = "Error rejecting appointment.";
+        // Can reject even if unpaid - rejection doesn't require payment
+        $update_query = "UPDATE appointment SET status = 'rejected' WHERE appoid = $appo_id";
+        
+        if ($database->query($update_query)) {
+            $success_message = "✅ Appointment rejected.";
+        } else {
+            $error_message = "❌ Error rejecting appointment.";
+        }
     }
 }
 
-// Handle appointment completion
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_appointment'])) {
+// MARK AS PAID LOGIC - Admin can manually mark unpaid appointments as paid
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_paid'])) {
     $appo_id = (int)$_POST['appo_id'];
-    $update_query = "UPDATE appointment SET status = 'completed' WHERE appoid = $appo_id";
     
-    if ($database->query($update_query)) {
-        $success_message = "Appointment marked as completed!";
+    // Check if appointment exists and is pending
+    $check_appt = $database->query("SELECT status, payment_status FROM appointment WHERE appoid = $appo_id");
+    $appt_data = $check_appt->fetch_assoc();
+    
+    if (!$appt_data) {
+        $error_message = "❌ Appointment not found.";
+    } else if ($appt_data['status'] != 'pending') {
+        $error_message = "❌ Can only update payment for pending appointments.";
+    } else if ($appt_data['payment_status'] == 'paid') {
+        $error_message = "⚠️ Payment is already marked as PAID.";
     } else {
-        $error_message = "Error updating appointment.";
+        // Mark as paid - appointment stays PENDING until admin approves it
+        $update_query = "UPDATE appointment SET payment_status = 'paid' WHERE appoid = $appo_id AND status = 'pending'";
+        
+        if ($database->query($update_query)) {
+            $success_message = "✅ Payment status updated to PAID! The appointment is still PENDING. You can now approve it.";
+        } else {
+            $error_message = "❌ Error updating payment status: " . $database->error;
+        }
     }
 }
 
-// Handle appointment deletion
+// DELETION LOGIC - Admin can delete any appointment at any time
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_appointment'])) {
     $appo_id = (int)$_POST['appo_id'];
-    // WARNING: This performs a permanent delete (hard delete).
-    $delete_query = "DELETE FROM appointment WHERE appoid = $appo_id";
     
-    if ($database->query($delete_query)) {
-        $success_message = "Appointment deleted permanently.";
+    // Check if appointment exists before deleting
+    $check = $database->query("SELECT appoid, status, payment_status FROM appointment WHERE appoid = $appo_id");
+    $data = $check->fetch_assoc();
+    
+    if (!$data) {
+        $error_message = "❌ Appointment not found.";
     } else {
-        $error_message = "Error deleting appointment: " . $database->error;
+        // WARNING: This performs a permanent delete (hard delete)
+        // Admin can delete appointments at ANY status (pending/approved/completed/rejected)
+        $delete_query = "DELETE FROM appointment WHERE appoid = $appo_id";
+        
+        if ($database->query($delete_query)) {
+            $success_message = "✅ Appointment deleted permanently.";
+        } else {
+            $error_message = "❌ Error deleting appointment: " . $database->error;
+        }
     }
 }
 
+// COMPLETION LOGIC - Can only complete APPROVED appointments with PAID status
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_appointment'])) {
+    $appo_id = (int)$_POST['appo_id'];
+    
+    // Check if appointment is approved and paid
+    $check = $database->query("SELECT status, payment_status FROM appointment WHERE appoid = $appo_id");
+    $data = $check->fetch_assoc();
+    
+    if (!$data) {
+        $error_message = "❌ Appointment not found.";
+    } else if ($data['status'] != 'approved') {
+        $error_message = "❌ Only approved appointments can be marked as completed.";
+    } else if ($data['payment_status'] != 'paid') {
+        $error_message = "❌ Cannot complete appointment. Payment must be completed first!";
+    } else {
+        // Double-check both conditions before completing
+        $update_query = "UPDATE appointment SET status = 'completed' WHERE appoid = $appo_id AND payment_status = 'paid' AND status = 'approved'";
+        
+        if ($database->query($update_query)) {
+            $success_message = "✅ Appointment marked as completed!";
+        } else {
+            $error_message = "❌ Error updating appointment.";
+        }
+    }
+}
 // Get filter parameters
 $filter_status = $_GET['status'] ?? 'all';
 $filter_payment = $_GET['payment'] ?? 'all';
@@ -69,9 +152,15 @@ $search = $_GET['search'] ?? '';
 
 // Build query
 $where_clauses = [];
-if ($filter_status != 'all') {
+
+// IMPORTANT: Exclude completed appointments from the default view
+// They will only show if explicitly filtered
+if ($filter_status == 'all') {
+    $where_clauses[] = "a.status != 'completed'";
+} else {
     $where_clauses[] = "a.status = '" . mysqli_real_escape_string($database, $filter_status) . "'";
 }
+
 if ($filter_payment != 'all') {
     $where_clauses[] = "a.payment_status = '" . mysqli_real_escape_string($database, $filter_payment) . "'";
 }
@@ -91,8 +180,8 @@ $appointments_query = $database->query("
     ORDER BY a.appodate DESC
 ");
 
-// Get statistics
-$total_appointments = $database->query("SELECT COUNT(*) as count FROM appointment")->fetch_assoc()['count'];
+// Get statistics (keep all counts accurate)
+$total_appointments = $database->query("SELECT COUNT(*) as count FROM appointment WHERE status != 'completed'")->fetch_assoc()['count'];
 $pending_appointments = $database->query("SELECT COUNT(*) as count FROM appointment WHERE status = 'pending'")->fetch_assoc()['count'];
 $approved_appointments = $database->query("SELECT COUNT(*) as count FROM appointment WHERE status = 'approved'")->fetch_assoc()['count'];
 $total_revenue = $database->query("SELECT SUM(amount) as total FROM appointment WHERE payment_status = 'paid'")->fetch_assoc()['total'] ?? 0;
@@ -107,6 +196,21 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
     <title>Appointments Management - Admin Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --sidebar-bg: #1e293b;
+            --sidebar-hover: #334155;
+            --text-dark: #0f172a;
+            --text-med: #64748b;
+            --bg-light: #f8fafc;
+            --white: #fff;
+            --sidebar-w: 260px;
+            --sidebar-mini: 70px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -114,215 +218,278 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            /* Use dashboard background gradient */
-            background: linear-gradient(135deg, #f6f7fb 0%, #e9ecef 100%);
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: var(--sidebar-w);
+            background: var(--sidebar-bg);
+            transition: width .3s;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar.mini {
+            width: var(--sidebar-mini);
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 70px;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .logo-text {
+            white-space: nowrap;
+            opacity: 1;
+            transition: opacity .2s;
+        }
+        
+        .sidebar.mini .logo-text {
+            opacity: 0;
+        }
+        
+        .logo-text h2 {
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .logo-text p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 10px;
+            overflow-y: auto;
+        }
+        
+        .sidebar-nav::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .sidebar-nav::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        .nav-section {
+            margin-bottom: 20px;
+        }
+        
+        .nav-section-title {
+            padding: 0 15px;
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 8px;
+            transition: opacity .2s;
+        }
+        
+        .sidebar.mini .nav-section-title {
+            opacity: 0;
+            height: 0;
+            margin: 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            transition: all .2s;
+            position: relative;
+        }
+        
+        .nav-item:hover {
+            background: var(--sidebar-hover);
+            color: white;
+        }
+        
+        .nav-item.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .nav-item i {
+            width: 20px;
+            font-size: 18px;
+            margin-right: 12px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        .nav-item span {
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 1;
+            transition: opacity .2s;
+        }
+        
+        .sidebar.mini .nav-item span {
+            opacity: 0;
+        }
+        
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .toggle-btn {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all .2s;
+            font-size: 16px;
+        }
+        
+        .toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-w);
+            transition: margin-left .3s;
             min-height: 100vh;
         }
         
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+        .sidebar.mini ~ .main-content {
+            margin-left: var(--sidebar-mini);
         }
         
-        .header {
-            /* Use dashboard header gradient and style */
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 25px 35px;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        .top-bar {
+            background: var(--white);
+            padding: 20px 30px;
+            box-shadow: var(--shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: white;
-            animation: slideDown 0.5s ease;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .page-title h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 4px;
         }
         
-        .header h1 {
-            font-size: 30px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        /* Added pulse animation for the icon from index.php */
-        .header h1 i {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
-        }
-        /* End added pulse animation */
-        
-        .header p {
-            margin-top: 8px;
-            opacity: 0.95;
-            font-size: 15px;
-            color: white !important; /* Ensure secondary text is white */
-        }
-        
-        .header-actions {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        
-        .btn {
-            /* Use dashboard button style */
-            padding: 12px 24px;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+        .page-title p {
             font-size: 14px;
-            border: none;
-            cursor: pointer;
+            color: var(--text-med);
         }
         
-        .btn-primary {
-            /* Dashboard transparent button style */
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        .btn-primary:hover {
-            background: rgba(255, 255, 255, 0.35);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        .content-container {
+            padding: 30px;
         }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr); /* Adjusted for 4 cards */
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
             margin-bottom: 30px;
-            animation: fadeIn 0.6s ease;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
         }
         
         .stat-card {
-            background: white;
-            padding: 28px;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, var(--card-color), var(--card-color-light));
+            background: var(--white);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            transition: all .3s;
+            border-left: 4px solid transparent;
         }
         
         .stat-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
         }
         
-        .stat-card .icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 15px;
+        .stat-card.blue { border-left-color: #3b82f6; }
+        .stat-card.green { border-left-color: var(--primary); }
+        .stat-card.purple { border-left-color: #8b5cf6; }
+        .stat-card.orange { border-left-color: #f59e0b; }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 18px;
-            font-size: 28px;
+            font-size: 20px;
         }
         
-        .stat-card .label {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
+        .icon-blue { background: #dbeafe; color: #3b82f6; }
+        .icon-green { background: #d1fae5; color: var(--primary); }
+        .icon-purple { background: #ede9fe; color: #8b5cf6; }
+        .icon-orange { background: #fed7aa; color: #f59e0b; }
+        
+        .stat-label {
+            color: var(--text-med);
+            font-size: 13px;
             font-weight: 500;
+            margin-bottom: 8px;
         }
         
-        .stat-card .value {
-            font-size: 36px;
+        .stat-value {
+            font-size: 28px;
             font-weight: 700;
-            color: #333;
+            color: var(--text-dark);
         }
         
-        /* Dashboard Card Colors */
-        .stat-card:nth-child(1) {
-            --card-color: #0284c7;
-            --card-color-light: #38bdf8;
-        }
-        
-        .stat-card:nth-child(2) {
-            --card-color: #16a34a;
-            --card-color-light: #4ade80;
-        }
-        
-        .stat-card:nth-child(3) {
-            --card-color: #9333ea;
-            --card-color-light: #c084fc;
-        }
-
-        .stat-card:nth-child(4) {
-            --card-color: #ea580c; /* Orange for revenue */
-            --card-color-light: #f97316;
-        }
-        
-        .icon-blue { background: #e0f2fe; color: #0284c7; }
-        .icon-green { background: #dcfce7; color: #16a34a; }
-        .icon-purple { background: #f3e8ff; color: #9333ea; }
-        .icon-orange { background: #fff7ed; color: #ea580c; } /* New color */
-        
-        /* Panel style for filters and table to match dashboard's look */
         .panel {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-            transition: all 0.3s;
-        }
-        
-        .panel:hover {
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-        }
-        
-        .filters {
-            /* Inherit panel style, adjust padding/margin */
-            padding: 30px;
+            background: var(--white);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--shadow);
             margin-bottom: 25px;
         }
         
@@ -337,7 +504,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
+            color: var(--text-dark);
             font-size: 14px;
         }
         
@@ -345,20 +512,40 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         .filter-group select {
             width: 100%;
             padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
             font-size: 14px;
+            transition: all .2s;
         }
         
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--primary);
         }
         
-        .appointments-table {
-            /* Inherit panel style, adjust padding */
-            padding: 30px;
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
         }
         
         .table-header {
@@ -369,8 +556,9 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         
         .table-header h2 {
-            color: #333;
-            font-size: 22px;
+            color: var(--text-dark);
+            font-size: 20px;
+            font-weight: 600;
         }
         
         table {
@@ -379,14 +567,14 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         
         thead {
-            background: #f8f9fa;
+            background: #f8fafc;
         }
         
         th {
             padding: 15px;
             text-align: left;
             font-weight: 600;
-            color: #333;
+            color: var(--text-dark);
             font-size: 14px;
         }
         
@@ -397,7 +585,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         
         tbody tr:hover {
-            background: #f8f9fa;
+            background: #f8fafc;
         }
         
         .status-badge {
@@ -408,35 +596,12 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
             font-weight: 600;
         }
         
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-approved {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-completed {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .status-rejected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .payment-paid {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .payment-unpaid {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-completed { background: #dbeafe; color: #1e40af; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .payment-paid { background: #d1fae5; color: #065f46; }
+        .payment-unpaid { background: #fee2e2; color: #991b1b; }
         
         .action-buttons {
             display: flex;
@@ -449,25 +614,25 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
             border-radius: 6px;
             border: none;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all .3s;
         }
         
-        .btn-approve {
-            background: #28a745;
-            color: white;
+        .btn-icon {
+            padding: 8px 12px;
+            font-size: 14px;
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .btn-reject {
-            background: #dc3545;
-            color: white;
-        }
+        .btn-approve { background: #28a745; color: white; }
+        .btn-approve:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+        .btn-reject { background: #dc3545; color: white; }
+        .btn-complete { background: #17a2b8; color: white; }
         
-        .btn-complete {
-            background: #17a2b8;
-            color: white;
-        }
-        
-        .btn-small:hover {
+        .btn-small:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
@@ -505,6 +670,48 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
             opacity: 0.3;
         }
         
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease, fadeOut 0.3s ease 2.7s;
+            opacity: 1;
+        }
+        
+        .toast.success { border-left: 4px solid #28a745; }
+        .toast.error { border-left: 4px solid #dc3545; }
+        .toast i { font-size: 20px; }
+        .toast.success i { color: #28a745; }
+        .toast.error i { color: #dc3545; }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        .mobile-toggle {
+            display: none;
+        }
+        
         @media (max-width: 1200px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -516,134 +723,233 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         
         @media (max-width: 768px) {
-            .appointments-table {
-                overflow-x: auto;
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .mobile-toggle {
+                display: block !important;
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 1001;
+                background: var(--primary);
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+            
+            .top-bar {
+                padding: 15px 20px 15px 70px;
+            }
+            
+            .content-container {
+                padding: 20px 15px;
             }
             
             .stats-grid {
                 grid-template-columns: 1fr;
             }
             
-            .header {
-                flex-direction: column;
-                text-align: center;
-                gap: 20px;
+            .toast-container {
+                left: 20px;
+                right: 20px;
             }
             
-            .header-actions {
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .btn {
-                width: 100%;
-                justify-content: center;
+            .toast {
+                min-width: auto;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1><i class="fas fa-calendar-check"></i> Appointments Management</h1>
-                <p>Manage and monitor all patient appointments</p> 
-            </div>
-            <div class="header-actions">
-                <a href="index.php" class="btn btn-primary">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
-                <a href="../logout.php" class="btn btn-primary">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon"><i class="fas fa-tooth"></i></div>
+            <div class="logo-text">
+                <h2>Dr. Dental Clinic</h2>
+                <p>Admin Portal</p>
             </div>
         </div>
         
-        <?php if ($success_message): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                <div><?php echo $success_message; ?></div>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($error_message): ?>
-            <div class="alert alert-error">
-                <i class="fas fa-exclamation-circle"></i>
-                <div><?php echo $error_message; ?></div>
-            </div>
-        <?php endif; ?>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="icon icon-blue">
-                    <i class="fas fa-calendar-alt"></i>
-                </div>
-                <div class="label">Total Appointments</div>
-                <div class="value"><?php echo $total_appointments; ?></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main</div>
+                <a href="index.php" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                </a>
+                <a href="appointment.php" class="nav-item active">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Appointments</span>
+                </a>
+                <a href="patient.php" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Patients</span>
+                </a>
             </div>
             
-            <div class="stat-card">
-                <div class="icon icon-green">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div class="label">Pending Approval</div>
-                <div class="value"><?php echo $pending_appointments; ?></div>
+            <div class="nav-section">
+                <div class="nav-section-title">Reports</div>
+                <a href="reports.php" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="revenue.php" class="nav-item">
+                    <i class="fas fa-dollar-sign"></i>
+                    <span>Revenue</span>
+                </a>
             </div>
             
-            <div class="stat-card">
-                <div class="icon icon-purple">
+            <div class="nav-section">
+                <div class="nav-section-title">Settings</div>
+                <a href="settings.php" class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+                <a href="../logout.php" class="nav-item">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <button class="toggle-btn" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </aside>
+    
+    <!-- Mobile Toggle Button -->
+    <button class="mobile-toggle" onclick="toggleMobile()">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="page-title">
+                <h1>Appointments Management</h1>
+                <p>Welcome back, <?php echo $adminName; ?>!</p>
+            </div>
+        </div>
+        
+        <div class="content-container">
+            <?php if ($success_message): ?>
+                <div class="alert alert-success">
                     <i class="fas fa-check-circle"></i>
+                    <div><?php echo $success_message; ?></div>
                 </div>
-                <div class="label">Approved</div>
-                <div class="value"><?php echo $approved_appointments; ?></div>
+            <?php endif; ?>
+            
+            <?php if ($error_message): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div><?php echo $error_message; ?></div>
+                </div>
+            <?php endif; ?>
+            
+            <div class="stats-grid">
+                <div class="stat-card blue">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">Total Appointments</div>
+                            <div class="stat-value"><?php echo $total_appointments; ?></div>
+                        </div>
+                        <div class="stat-icon icon-blue">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-card green">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">Pending Approval</div>
+                            <div class="stat-value"><?php echo $pending_appointments; ?></div>
+                        </div>
+                        <div class="stat-icon icon-green">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-card purple">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">Approved</div>
+                            <div class="stat-value"><?php echo $approved_appointments; ?></div>
+                        </div>
+                        <div class="stat-icon icon-purple">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-card orange">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">Total Revenue</div>
+                            <div class="stat-value">₱<?php echo number_format($total_revenue); ?></div>
+                        </div>
+                        <div class="stat-icon icon-orange">
+                            <i class="fas fa-peso-sign"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <div class="stat-card">
-                <div class="icon icon-orange">
-                    <i class="fas fa-peso-sign"></i>
-                </div>
-                <div class="label">Total Revenue</div>
-                <div class="value">₱<?php echo number_format($total_revenue); ?></div>
-            </div>
-        </div>
-        
-        <div class="filters panel">
-            <form method="GET" action="">
-                <div class="filter-group">
-                    <label>Search</label>
-                    <input type="text" name="search" placeholder="Search by patient name, appointment #, or service" value="<?php echo e($search); ?>">
-                </div>
-                
-                <div class="filter-group">
-                    <label>Status</label>
-                    <select name="status">
-                        <option value="all" <?php echo $filter_status == 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $filter_status == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        <option value="approved" <?php echo $filter_status == 'approved' ? 'selected' : ''; ?>>Approved</option>
-                        <option value="completed" <?php echo $filter_status == 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        <option value="rejected" <?php echo $filter_status == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label>Payment</label>
-                    <select name="payment">
-                        <option value="all" <?php echo $filter_payment == 'all' ? 'selected' : ''; ?>>All Payments</option>
-                        <option value="paid" <?php echo $filter_payment == 'paid' ? 'selected' : ''; ?>>Paid</option>
-                        <option value="unpaid" <?php echo $filter_payment == 'unpaid' ? 'selected' : ''; ?>>Unpaid</option>
-                    </select>
-                </div>
-                
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-search"></i> Filter
-                </button>
-            </form>
-        </div>
-        
-        <div class="appointments-table panel">
+            <div class="filters panel">
+                <form method="GET" action="">
+                    <div class="filter-group">
+                        <label>Search</label>
+                        <input type="text" name="search" placeholder="Search by patient name, appointment #, or service" value="<?php echo e($search); ?>">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select name="status">
+                            <option value="all" <?php echo $filter_status == 'all' ? 'selected' : ''; ?>>All Status</option>
+                            <option value="pending" <?php echo $filter_status == 'pending' ? 'selected' : ''; ?>>Pending</option>
+                            <option value="approved" <?php echo $filter_status == 'approved' ? 'selected' : ''; ?>>Approved</option>
+                            <option value="completed" <?php echo $filter_status == 'completed' ? 'selected' : ''; ?>>Completed</option>
+                            <option value="rejected" <?php echo $filter_status == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Payment</label>
+                        <select name="payment">
+                            <option value="all" <?php echo $filter_payment == 'all' ? 'selected' : ''; ?>>All Payments</option>
+                            <option value="paid" <?php echo $filter_payment == 'paid' ? 'selected' : ''; ?>>Paid</option>
+                            <option value="unpaid" <?php echo $filter_payment == 'unpaid' ? 'selected' : ''; ?>>Unpaid</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+<i class="fas fa-search"></i> Filter
+</button>
+</form>
+</div>
+        <div class="panel">
             <div class="table-header">
                 <h2>Appointments List</h2>
-                <span style="color: #666;"><?php echo $appointments_query->num_rows; ?> appointments found</span>
+                <span style="color: var(--text-med);"><?php echo $appointments_query->num_rows; ?> appointments found</span>
             </div>
             
             <?php if ($appointments_query->num_rows > 0): ?>
@@ -666,7 +972,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
                                 <td><strong>#<?php echo e($appt['apponum']); ?></strong></td>
                                 <td>
                                     <div style="font-weight: 600;"><?php echo e($appt['pname']); ?></div>
-                                    <div style="font-size: 12px; color: #666;"><?php echo e($appt['pemail']); ?></div>
+                                    <div style="font-size: 12px; color: var(--text-med);"><?php echo e($appt['pemail']); ?></div>
                                 </td>
                                 <td><?php echo e($appt['service_type']); ?></td>
                                 <td><?php echo date('M j, Y g:i A', strtotime($appt['appodate'])); ?></td>
@@ -681,38 +987,92 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
                                         <?php echo ucfirst($appt['payment_status']); ?>
                                     </span>
                                 </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <?php if ($appt['status'] == 'pending'): ?>
-                                            <form method="POST" style="display: inline;">
-                                                <input type="hidden" name="appo_id" value="<?php echo $appt['appoid']; ?>">
-                                                <button type="submit" name="approve_appointment" class="btn-small btn-approve" title="Approve">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                            </form>
-                                            <form method="POST" style="display: inline;">
-                                                <input type="hidden" name="appo_id" value="<?php echo $appt['appoid']; ?>">
-                                                <button type="submit" name="reject_appointment" class="btn-small btn-reject" title="Reject">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            </form>
-                                        <?php elseif ($appt['status'] == 'approved'): ?>
-                                            <form method="POST" style="display: inline;">
-                                                <input type="hidden" name="appo_id" value="<?php echo $appt['appoid']; ?>">
-                                                <button type="submit" name="complete_appointment" class="btn-small btn-complete" title="Mark as Completed">
-                                                    <i class="fas fa-check-double"></i>
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
-                                        
-                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to PERMANENTLY delete appointment #<?php echo e($appt['apponum']); ?>? This action cannot be undone.');">
-                                            <input type="hidden" name="appo_id" value="<?php echo $appt['appoid']; ?>">
-                                            <button type="submit" name="delete_appointment" class="btn-small btn-reject" title="Delete Appointment">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+                               <td>
+ <div class="action-buttons">
+        <?php if ($appt['status'] == 'pending'): ?>
+            <?php if ($appt['payment_status'] == 'paid'): ?>
+                <!-- Payment is PAID - Show Approve button -->
+                <button 
+                    class="btn-small btn-icon btn-approve ajax-action" 
+                    title="Approve Appointment"
+                    data-action="approve_appointment"
+                    data-appo-id="<?php echo $appt['appoid']; ?>"
+                    data-confirm="Approve appointment #<?php echo e($appt['apponum']); ?>?"
+                >
+                    <i class="fas fa-check"></i>
+                </button>
+            <?php else: ?>
+                <!-- Payment is UNPAID - Show payment warning button -->
+                <button 
+                    class="btn-small btn-icon ajax-action" 
+                    style="background: #ff9800; color: white;"
+                    title="⚠️ Mark as PAID (For cash/manual payments)"
+                    data-action="mark_paid"
+                    data-appo-id="<?php echo $appt['appoid']; ?>"
+                    data-confirm="Mark this appointment as PAID?\n\nOnly mark as paid if you've received payment in person or verified the transaction."
+                >
+                    <i class="fas fa-dollar-sign"></i>
+                </button>
+                
+                <!-- Disabled Approve button with tooltip -->
+                <button 
+                    class="btn-small btn-icon" 
+                    style="background: #ccc; color: #666; cursor: not-allowed; opacity: 0.6;"
+                    title="❌ Cannot approve - Payment not completed yet"
+                    disabled
+                >
+                    <i class="fas fa-check"></i>
+                </button>
+            <?php endif; ?>
+            
+            <!-- Reject button - always available for pending -->
+            <button 
+                class="btn-small btn-icon btn-reject ajax-action" 
+                title="Reject Appointment"
+                data-action="reject_appointment"
+                data-appo-id="<?php echo $appt['appoid']; ?>"
+                data-confirm="Reject appointment #<?php echo e($appt['apponum']); ?>?"
+            >
+                <i class="fas fa-times"></i>
+            </button>
+            
+        <?php elseif ($appt['status'] == 'approved'): ?>
+            <!-- For APPROVED appointments - Show Complete button -->
+            <button 
+                class="btn-small btn-icon btn-complete ajax-action" 
+                title="Mark as Completed"
+                data-action="complete_appointment"
+                data-appo-id="<?php echo $appt['appoid']; ?>"
+                data-confirm="Mark appointment #<?php echo e($appt['apponum']); ?> as completed?"
+            >
+                <i class="fas fa-check-double"></i>
+            </button>
+            
+        <?php elseif ($appt['status'] == 'completed'): ?>
+            <!-- Show completed status -->
+            <span style="color: #28a745; font-weight: 600; font-size: 12px;">
+                <i class="fas fa-check-circle"></i> Completed
+            </span>
+            
+        <?php elseif ($appt['status'] == 'rejected'): ?>
+            <!-- Show rejected status -->
+            <span style="color: #dc3545; font-weight: 600; font-size: 12px;">
+                <i class="fas fa-times-circle"></i> Rejected
+            </span>
+        <?php endif; ?>
+        
+        <!-- Delete button - always available -->
+        <button 
+            class="btn-small btn-icon btn-reject ajax-action" 
+            title="Delete Appointment"
+            data-action="delete_appointment"
+            data-appo-id="<?php echo $appt['appoid']; ?>"
+            data-confirm="⚠️ PERMANENTLY delete appointment #<?php echo e($appt['apponum']); ?>?\n\nThis action cannot be undone!"
+        >
+            <i class="fas fa-trash-alt"></i>
+        </button>
+    </div>
+</td>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -726,5 +1086,179 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
             <?php endif; ?>
         </div>
     </div>
+</main>
+
+<script>
+    // Toggle sidebar function
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('mini');
+    }
+    
+    // Toggle mobile sidebar
+    function toggleMobile() {
+        document.getElementById('sidebar').classList.toggle('mobile-open');
+    }
+    
+    // Toast notification function
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        
+        toast.innerHTML = `
+            <i class="fas ${icon}"></i>
+            <div>${message}</div>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                container.removeChild(toast);
+            }, 300);
+        }, 3000);
+    }
+    
+    // Handle all AJAX action buttons
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.ajax-action')) {
+        e.preventDefault();
+        const button = e.target.closest('.ajax-action');
+        
+        const confirmMessage = button.getAttribute('data-confirm');
+        if (confirmMessage && !confirm(confirmMessage)) {
+            return;
+        }
+        
+        const action = button.getAttribute('data-action');
+        const appoId = button.getAttribute('data-appo-id');
+        
+        // Get the current row to update it
+        const currentRow = button.closest('tr');
+        
+        button.disabled = true;
+        button.style.opacity = '0.5';
+        
+        const formData = new FormData();
+        formData.append(action, '1');
+        formData.append('appo_id', appoId);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Update the specific row instead of the entire table
+            const allRows = doc.querySelectorAll('tbody tr');
+            let foundRow = null;
+            
+            allRows.forEach(row => {
+                const rowAppoId = row.querySelector('.ajax-action')?.getAttribute('data-appo-id');
+                if (rowAppoId === appoId) {
+                    foundRow = row;
+                }
+            });
+            
+            if (foundRow && currentRow) {
+                // Update status badge
+                const newStatusBadge = foundRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
+                const currentStatusBadge = currentRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
+                if (newStatusBadge && currentStatusBadge) {
+                    currentStatusBadge.className = newStatusBadge.className;
+                    currentStatusBadge.textContent = newStatusBadge.textContent;
+                }
+                
+                // Update payment badge
+                const newPaymentBadge = foundRow.querySelector('.payment-paid, .payment-unpaid');
+                const currentPaymentBadge = currentRow.querySelector('.payment-paid, .payment-unpaid');
+                if (newPaymentBadge && currentPaymentBadge) {
+                    currentPaymentBadge.className = newPaymentBadge.className;
+                    currentPaymentBadge.textContent = newPaymentBadge.textContent;
+                }
+                
+                // Update action buttons
+                const newActions = foundRow.querySelector('.action-buttons');
+                const currentActions = currentRow.querySelector('.action-buttons');
+                if (newActions && currentActions) {
+                    currentActions.innerHTML = newActions.innerHTML;
+                }
+            }
+            
+            // Update statistics
+            const newStats = doc.querySelectorAll('.stat-card .stat-value');
+            const currentStats = document.querySelectorAll('.stat-card .stat-value');
+            newStats.forEach((stat, index) => {
+                if (currentStats[index]) {
+                    currentStats[index].textContent = stat.textContent;
+                }
+            });
+            
+            // Check for alerts and show toast
+            const successAlert = doc.querySelector('.alert-success');
+            const errorAlert = doc.querySelector('.alert-error');
+            
+            if (successAlert) {
+                const message = successAlert.textContent.trim().replace(/\s+/g, ' ');
+                showToast(message, 'success');
+            } else if (errorAlert) {
+                const message = errorAlert.textContent.trim().replace(/\s+/g, ' ');
+                showToast(message, 'error');
+            } else {
+               const messages = {
+                            'mark_paid': '✅ Payment status updated to PAID! You can now approve the appointment.',
+                            'approve_appointment': '✅ Appointment approved successfully!',
+                            'reject_appointment': '✅ Appointment rejected.',
+                            'complete_appointment': '✅ Appointment marked as completed!',
+                            'delete_appointment': '✅ Appointment deleted permanently.'
+                        };
+                        showToast(messages[action] || '✅ Action completed successfully!', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('❌ An error occurred. Please try again.', 'error');
+            button.disabled = false;
+            button.style.opacity = '1';
+        });
+    }
+});
+    
+    // Show any initial alerts as toasts
+    window.addEventListener('DOMContentLoaded', function() {
+        const successAlert = document.querySelector('.alert-success');
+        const errorAlert = document.querySelector('.alert-error');
+        
+        if (successAlert) {
+            const message = successAlert.textContent.trim().replace(/\s+/g, ' ');
+            showToast(message, 'success');
+            successAlert.remove();
+        }
+        
+        if (errorAlert) {
+            const message = errorAlert.textContent.trim().replace(/\s+/g, ' ');
+            showToast(message, 'error');
+            errorAlert.remove();
+        }
+    });
+    
+    // Close sidebar on mobile when clicking outside
+    document.addEventListener('click', function(e) {
+        if (window.innerWidth <= 768) {
+            const sidebar = document.getElementById('sidebar');
+            const mobileToggle = document.querySelector('.mobile-toggle');
+            
+            if (!sidebar.contains(e.target) && !mobileToggle.contains(e.target) && sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+            }
+        }
+    });
+</script>
 </body>
 </html>
