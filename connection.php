@@ -6,10 +6,10 @@ $username = "root";
 $password = "";
 $database_name = "edoc";
 
-// Create connection (note the port as 5th parameter)
+
 $database = new mysqli($host, $username, $password, $database_name);
 
-// Check connection
+// Check connection 
 if ($database->connect_error) {
     die("Connection failed: " . $database->connect_error);
 }

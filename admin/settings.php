@@ -10,7 +10,94 @@ $adminEmail = htmlspecialchars($_SESSION['useremail'] ?? '', ENT_QUOTES, 'UTF-8'
 
 $success = $error = '';
 
-// Handle profile update
+// Create clinic_settings table if it doesn't exist
+try {
+    $database->query("CREATE TABLE IF NOT EXISTS clinic_settings (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        clinic_name VARCHAR(255) NOT NULL,
+        clinic_email VARCHAR(255) NOT NULL,
+        clinic_phone VARCHAR(50),
+        clinic_address TEXT,
+        opening_hours VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )");
+    
+    // Insert default settings if table is empty
+    $check = $database->query("SELECT COUNT(*) as count FROM clinic_settings");
+    $row = $check->fetch_assoc();
+    if ($row['count'] == 0) {
+        $database->query("INSERT INTO clinic_settings (clinic_name, clinic_email, clinic_phone, clinic_address, opening_hours) 
+                         VALUES ('Dr. Dental Clinic Center', 'info@dentalcare.com', '+63 123 456 7890', '123 Main Street, City, Philippines', 'Open 8:00 AM - 5:00 PM')");
+    }
+} catch (Exception $e) {
+    // Table creation failed, but continue
+}
+
+// Create appointment_settings table if it doesn't exist
+try {
+    $database->query("CREATE TABLE IF NOT EXISTS appointment_settings (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        appointment_duration INT DEFAULT 30,
+        working_hours_start TIME DEFAULT '09:00:00',
+        working_hours_end TIME DEFAULT '18:00:00',
+        advance_booking_days INT DEFAULT 30,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )");
+    
+    // Insert default appointment settings if table is empty
+    $check = $database->query("SELECT COUNT(*) as count FROM appointment_settings");
+    $row = $check->fetch_assoc();
+    if ($row['count'] == 0) {
+        $database->query("INSERT INTO appointment_settings (appointment_duration, working_hours_start, working_hours_end, advance_booking_days) 
+                         VALUES (30, '09:00:00', '18:00:00', 30)");
+    }
+} catch (Exception $e) {
+    // Table creation failed, but continue
+}
+
+// Fetch current clinic settings
+$clinicSettings = [
+    'clinic_name' => 'Dr. Dental Clinic Center',
+    'clinic_email' => 'info@dentalcare.com',
+    'clinic_phone' => '+63 123 456 7890',
+    'clinic_address' => '123 Main Street, City, Philippines',
+    'opening_hours' => 'Open 8:00 AM - 5:00 PM'
+];
+
+try {
+    $result = $database->query("SELECT * FROM clinic_settings LIMIT 1");
+    if ($result && $row = $result->fetch_assoc()) {
+        $clinicSettings = $row;
+    }
+} catch (Exception $e) {
+    // Use defaults
+}
+
+// Fetch current appointment settings
+$appointmentSettings = [
+    'appointment_duration' => 30,
+    'working_hours_start' => '09:00',
+    'working_hours_end' => '18:00',
+    'advance_booking_days' => 30
+];
+
+try {
+    $result = $database->query("SELECT * FROM appointment_settings LIMIT 1");
+    if ($result && $row = $result->fetch_assoc()) {
+        $appointmentSettings = [
+            'appointment_duration' => $row['appointment_duration'],
+            'working_hours_start' => substr($row['working_hours_start'], 0, 5), // Convert to HH:MM format
+            'working_hours_end' => substr($row['working_hours_end'], 0, 5),
+            'advance_booking_days' => $row['advance_booking_days']
+        ];
+    }
+} catch (Exception $e) {
+    // Use defaults
+}
+
+// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'update_profile') {
         $newName = trim($_POST['admin_name'] ?? '');
@@ -48,14 +135,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if ($newPass === $confirmPass) {
                 if (strlen($newPass) >= 8) {
                     try {
-                        // Verify current password
                         $stmt = $database->prepare("SELECT apassword FROM admin WHERE aemail = ?");
                         $stmt->bind_param("s", $adminEmail);
                         $stmt->execute();
                         $result = $stmt->get_result()->fetch_assoc();
                         
                         if ($result && password_verify($currentPass, $result['apassword'])) {
-                            // Update password
                             $hashedPass = password_hash($newPass, PASSWORD_DEFAULT);
                             $stmt = $database->prepare("UPDATE admin SET apassword = ? WHERE aemail = ?");
                             $stmt->bind_param("ss", $hashedPass, $adminEmail);
@@ -88,10 +173,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $clinicEmail = trim($_POST['clinic_email'] ?? '');
         $clinicPhone = trim($_POST['clinic_phone'] ?? '');
         $clinicAddress = trim($_POST['clinic_address'] ?? '');
+        $openingHours = trim($_POST['opening_hours'] ?? '');
         
-        // In a real application, these would be saved to a settings table
-        // For now, we'll just show success
-        $success = "System settings updated successfully!";
+        if (!empty($clinicName) && !empty($clinicEmail) && filter_var($clinicEmail, FILTER_VALIDATE_EMAIL)) {
+            try {
+                $check = $database->query("SELECT id FROM clinic_settings LIMIT 1");
+                
+                if ($check && $check->num_rows > 0) {
+                    $stmt = $database->prepare("UPDATE clinic_settings SET clinic_name = ?, clinic_email = ?, clinic_phone = ?, clinic_address = ?, opening_hours = ? WHERE id = (SELECT id FROM (SELECT id FROM clinic_settings LIMIT 1) as temp)");
+                    $stmt->bind_param("sssss", $clinicName, $clinicEmail, $clinicPhone, $clinicAddress, $openingHours);
+                } else {
+                    $stmt = $database->prepare("INSERT INTO clinic_settings (clinic_name, clinic_email, clinic_phone, clinic_address, opening_hours) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->bind_param("sssss", $clinicName, $clinicEmail, $clinicPhone, $clinicAddress, $openingHours);
+                }
+                
+                if ($stmt->execute()) {
+                    $success = "System settings updated successfully! Changes will appear on the homepage.";
+                    $clinicSettings['clinic_name'] = $clinicName;
+                    $clinicSettings['clinic_email'] = $clinicEmail;
+                    $clinicSettings['clinic_phone'] = $clinicPhone;
+                    $clinicSettings['clinic_address'] = $clinicAddress;
+                    $clinicSettings['opening_hours'] = $openingHours;
+                } else {
+                    $error = "Failed to update system settings.";
+                }
+            } catch (Exception $e) {
+                $error = "Error: " . $e->getMessage();
+            }
+        } else {
+            $error = "Please provide valid clinic name and email.";
+        }
+    }
+    
+    // Handle appointment settings
+    if ($_POST['action'] === 'update_appointments') {
+        $duration = intval($_POST['appointment_duration'] ?? 30);
+        $startTime = trim($_POST['working_hours_start'] ?? '09:00');
+        $endTime = trim($_POST['working_hours_end'] ?? '18:00');
+        $advanceBooking = intval($_POST['advance_booking'] ?? 30);
+        
+        // Validate times
+        if (!empty($startTime) && !empty($endTime)) {
+            try {
+                // Convert times to comparable format
+                $start = strtotime($startTime);
+                $end = strtotime($endTime);
+                
+                if ($end > $start) {
+                    $check = $database->query("SELECT id FROM appointment_settings LIMIT 1");
+                    
+                    if ($check && $check->num_rows > 0) {
+                        $stmt = $database->prepare("UPDATE appointment_settings SET appointment_duration = ?, working_hours_start = ?, working_hours_end = ?, advance_booking_days = ? WHERE id = (SELECT id FROM (SELECT id FROM appointment_settings LIMIT 1) as temp)");
+                        $stmt->bind_param("issi", $duration, $startTime, $endTime, $advanceBooking);
+                    } else {
+                        $stmt = $database->prepare("INSERT INTO appointment_settings (appointment_duration, working_hours_start, working_hours_end, advance_booking_days) VALUES (?, ?, ?, ?)");
+                        $stmt->bind_param("issi", $duration, $startTime, $endTime, $advanceBooking);
+                    }
+                    
+                    if ($stmt->execute()) {
+                        $success = "Appointment settings updated successfully!";
+                        $appointmentSettings['appointment_duration'] = $duration;
+                        $appointmentSettings['working_hours_start'] = $startTime;
+                        $appointmentSettings['working_hours_end'] = $endTime;
+                        $appointmentSettings['advance_booking_days'] = $advanceBooking;
+                    } else {
+                        $error = "Failed to update appointment settings.";
+                    }
+                } else {
+                    $error = "End time must be after start time.";
+                }
+            } catch (Exception $e) {
+                $error = "Error: " . $e->getMessage();
+            }
+        } else {
+            $error = "Please provide valid working hours.";
+        }
     }
 }
 
@@ -104,71 +260,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings - Admin Dashboard</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>
-:root{--primary:#10b981;--primary-dark:#059669;--sidebar-bg:#1e293b;--sidebar-hover:#334155;--text-dark:#0f172a;--text-med:#64748b;--bg-light:#f8fafc;--white:#fff;--sidebar-w:260px;--sidebar-mini:70px;--shadow:0 1px 3px rgba(0,0,0,0.1);--shadow-lg:0 10px 25px rgba(0,0,0,0.1)}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-light);color:var(--text-dark);overflow-x:hidden}
-.sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--sidebar-w);background:var(--sidebar-bg);transition:width .3s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
-.sidebar.mini{width:var(--sidebar-mini)}
-.sidebar-header{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.1);min-height:70px}
-.logo-icon{width:40px;height:40px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:white;flex-shrink:0}
-.logo-text{white-space:nowrap;opacity:1;transition:opacity .2s}
-.sidebar.mini .logo-text{opacity:0}
-.logo-text h2{color:white;font-size:16px;font-weight:700}
-.logo-text p{color:rgba(255,255,255,0.6);font-size:12px}
-.sidebar-nav{flex:1;padding:20px 10px;overflow-y:auto}
-.sidebar-nav::-webkit-scrollbar{width:4px}
-.sidebar-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:4px}
-.nav-section{margin-bottom:20px}
-.nav-section-title{padding:0 15px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;transition:opacity .2s}
-.sidebar.mini .nav-section-title{opacity:0;height:0;margin:0}
-.nav-item{display:flex;align-items:center;padding:12px 15px;color:rgba(255,255,255,0.8);text-decoration:none;border-radius:8px;margin-bottom:4px;transition:all .2s}
-.nav-item:hover{background:var(--sidebar-hover);color:white}
-.nav-item.active{background:var(--primary);color:white}
-.nav-item i{width:20px;font-size:18px;margin-right:12px;text-align:center;flex-shrink:0}
-.nav-item span{white-space:nowrap;font-size:14px;font-weight:500;opacity:1;transition:opacity .2s}
-.sidebar.mini .nav-item span{opacity:0}
-.sidebar-footer{padding:15px;border-top:1px solid rgba(255,255,255,0.1)}
-.toggle-btn{width:100%;padding:10px;background:rgba(255,255,255,0.1);border:none;border-radius:8px;color:white;cursor:pointer;transition:all .2s;font-size:16px}
-.toggle-btn:hover{background:rgba(255,255,255,0.2)}
-.main-content{margin-left:var(--sidebar-w);transition:margin-left .3s;min-height:100vh}
-.sidebar.mini~.main-content{margin-left:var(--sidebar-mini)}
-.top-bar{background:var(--white);padding:20px 30px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
-.page-title h1{font-size:24px;font-weight:700;color:var(--text-dark);margin-bottom:4px}
-.page-title p{font-size:14px;color:var(--text-med)}
-.content-container{padding:30px;max-width:1200px}
-.alert{padding:14px 18px;border-radius:10px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500}
-.alert-success{background:#d1fae5;color:#065f46;border-left:4px solid #10b981}
-.alert-error{background:#fee2e2;color:#991b1b;border-left:4px solid #ef4444}
-.alert i{font-size:18px}
-.settings-grid{display:grid;gap:25px}
-.settings-card{background:var(--white);border-radius:12px;padding:30px;box-shadow:var(--shadow)}
-.settings-header{display:flex;align-items:center;gap:12px;margin-bottom:25px;padding-bottom:20px;border-bottom:2px solid #f3f4f6}
-.settings-header i{font-size:24px;color:var(--primary)}
-.settings-header h2{font-size:20px;font-weight:700;color:var(--text-dark)}
-.settings-header p{font-size:14px;color:var(--text-med);margin-top:4px}
-.form-group{margin-bottom:20px}
-.form-group label{display:block;font-size:14px;font-weight:600;color:var(--text-dark);margin-bottom:8px}
-.form-group input,.form-group textarea,.form-group select{width:100%;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;transition:all .2s;font-family:inherit}
-.form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(16,185,129,0.1)}
-.form-group textarea{resize:vertical;min-height:100px}
-.form-group small{display:block;margin-top:6px;font-size:12px;color:var(--text-med)}
-.btn{padding:12px 24px;border-radius:10px;font-weight:600;transition:all .2s;display:inline-flex;align-items:center;gap:8px;font-size:14px;border:none;cursor:pointer;text-decoration:none}
-.btn-primary{background:var(--primary);color:white}
-.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,0.3)}
-.btn-secondary{background:transparent;color:var(--text-med);border:1px solid #e5e7eb}
-.btn-secondary:hover{background:#f3f4f6}
-.form-actions{display:flex;gap:12px;margin-top:30px;padding-top:20px;border-top:1px solid #f3f4f6}
-.info-box{background:#f0f9ff;border-left:4px solid #3b82f6;padding:16px;border-radius:8px;margin-bottom:20px}
-.info-box p{color:#1e40af;font-size:13px;line-height:1.6}
-.info-box i{color:#3b82f6;margin-right:8px}
-@media(max-width:768px){.sidebar{transform:translateX(-100%)}
-.sidebar.mobile-open{transform:translateX(0)}
-.main-content{margin-left:0}
-.content-container{padding:20px 15px}
-.form-actions{flex-direction:column}
-.btn{width:100%}}
-</style>
+<link rel="stylesheet" href="/dental-clinic-appointment-system/css/asettings.css">
 </head>
 <body>
 <aside class="sidebar" id="sidebar">
@@ -295,26 +387,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <i class="fas fa-cogs"></i>
 <div>
 <h2>System Settings</h2>
-<p>Configure clinic information and preferences</p>
+<p>Configure clinic information and preferences (displays on homepage)</p>
 </div>
 </div>
 <form method="POST" action="">
 <input type="hidden" name="action" value="update_system">
 <div class="form-group">
 <label for="clinic_name">Clinic Name</label>
-<input type="text" id="clinic_name" name="clinic_name" value="Dental Care Clinic" required>
+<input type="text" id="clinic_name" name="clinic_name" value="<?php echo e($clinicSettings['clinic_name']); ?>" required>
 </div>
 <div class="form-group">
 <label for="clinic_email">Clinic Email</label>
-<input type="email" id="clinic_email" name="clinic_email" value="info@dentalcare.com" required>
+<input type="email" id="clinic_email" name="clinic_email" value="<?php echo e($clinicSettings['clinic_email']); ?>" required>
 </div>
 <div class="form-group">
 <label for="clinic_phone">Clinic Phone</label>
-<input type="tel" id="clinic_phone" name="clinic_phone" value="+63 123 456 7890">
+<input type="tel" id="clinic_phone" name="clinic_phone" value="<?php echo e($clinicSettings['clinic_phone']); ?>">
 </div>
 <div class="form-group">
 <label for="clinic_address">Clinic Address</label>
-<textarea id="clinic_address" name="clinic_address">123 Main Street, City, Philippines</textarea>
+<textarea id="clinic_address" name="clinic_address"><?php echo e($clinicSettings['clinic_address']); ?></textarea>
+</div>
+<div class="form-group">
+<label for="opening_hours">Opening Hours</label>
+<input type="text" id="opening_hours" name="opening_hours" value="<?php echo e($clinicSettings['opening_hours']); ?>" placeholder="e.g., Open 8:00 AM - 5:00 PM">
+<small>This will be displayed in the footer of the homepage</small>
 </div>
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">
@@ -338,23 +435,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="form-group">
 <label for="appointment_duration">Default Appointment Duration (minutes)</label>
 <select id="appointment_duration" name="appointment_duration">
-<option value="30" selected>30 minutes</option>
-<option value="45">45 minutes</option>
-<option value="60">60 minutes</option>
-<option value="90">90 minutes</option>
+<option value="30" <?php echo $appointmentSettings['appointment_duration'] == 30 ? 'selected' : ''; ?>>30 minutes</option>
+<option value="45" <?php echo $appointmentSettings['appointment_duration'] == 45 ? 'selected' : ''; ?>>45 minutes</option>
+<option value="60" <?php echo $appointmentSettings['appointment_duration'] == 60 ? 'selected' : ''; ?>>60 minutes</option>
+<option value="90" <?php echo $appointmentSettings['appointment_duration'] == 90 ? 'selected' : ''; ?>>90 minutes</option>
 </select>
 </div>
 <div class="form-group">
 <label for="working_hours_start">Working Hours Start</label>
-<input type="time" id="working_hours_start" name="working_hours_start" value="09:00">
+<input type="time" id="working_hours_start" name="working_hours_start" value="<?php echo e($appointmentSettings['working_hours_start']); ?>" required>
 </div>
 <div class="form-group">
 <label for="working_hours_end">Working Hours End</label>
-<input type="time" id="working_hours_end" name="working_hours_end" value="18:00">
+<input type="time" id="working_hours_end" name="working_hours_end" value="<?php echo e($appointmentSettings['working_hours_end']); ?>" required>
 </div>
 <div class="form-group">
 <label for="advance_booking">Maximum Advance Booking (days)</label>
-<input type="number" id="advance_booking" name="advance_booking" value="30" min="1" max="365">
+<input type="number" id="advance_booking" name="advance_booking" value="<?php echo e($appointmentSettings['advance_booking_days']); ?>" min="1" max="365" required>
 <small>Patients can book appointments up to this many days in advance</small>
 </div>
 <div class="form-actions">
@@ -449,6 +546,27 @@ document.getElementById('confirm_password')?.addEventListener('input', function(
         this.setCustomValidity('');
     }
 });
+
+// Validate working hours
+document.getElementById('working_hours_end')?.addEventListener('change', function() {
+    const startTime = document.getElementById('working_hours_start').value;
+    const endTime = this.value;
+    
+    if (startTime && endTime && endTime <= startTime) {
+        this.setCustomValidity('End time must be after start time');
+    } else {
+        this.setCustomValidity('');
+    }
+}); 
+
+// Auto-hide alerts after 5 seconds
+setTimeout(() => {
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        alert.style.opacity = '0';
+        setTimeout(() => alert.remove(), 300);
+    });
+}, 5000);
 </script>
 </body>
 </html>

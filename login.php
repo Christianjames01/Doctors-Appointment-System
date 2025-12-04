@@ -388,7 +388,7 @@ if ($_POST) {
         </div>
         
         <div class="back-home">
-            <a href="index.html">← Back to Home</a>
+            <a href="index.php">← Back to Home</a>
         </div>
     </div>
 

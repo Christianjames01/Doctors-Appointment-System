@@ -11,6 +11,6 @@ if (isset($_COOKIE[session_name()])) {
 }
 
 // Redirect to home page
-header("Location: index.html");
+header("Location: index.php");
 exit();
 ?>

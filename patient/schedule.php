@@ -19,6 +19,7 @@ if($userrow && $userrow->num_rows > 0){
     $userfetch = $userrow->fetch_assoc();
     $userid = $userfetch["pid"];
     $username = $userfetch["pname"];
+    $userprofile = $userfetch["profile_picture"] ?? null;
 } else {
     header("location: ../login.php");
     exit();
@@ -26,6 +27,218 @@ if($userrow && $userrow->num_rows > 0){
 
 date_default_timezone_set('Asia/Manila');
 $today = date('Y-m-d');
+
+// Service prices
+$service_prices = [
+    'General Checkup' => 500,
+    'Teeth Cleaning' => 800,
+    'Teeth Whitening' => 3000,
+    'Tooth Extraction' => 1500,
+    'Dental Filling' => 1200,
+    'Root Canal Treatment' => 5000,
+    'Braces Consultation' => 1000,
+    'Dental Crown' => 4000,
+    'Dental Bridge' => 6000,
+    'Dental Implant' => 15000,
+    'Gum Treatment' => 2000,
+    'Emergency Dental Care' => 2500,
+    'Pediatric Dentistry' => 800,
+    'Orthodontics' => 3500,
+    'Cosmetic Dentistry' => 4500
+];
+
+// Service overview information
+$service_overview = [
+    'General Checkup' => [
+        'description' => 'A comprehensive oral examination to assess your overall dental health. Our dentists will check for cavities, gum disease, oral cancer signs, and other dental issues.',
+        'benefits' => [
+            'Early detection of dental problems',
+            'Prevention of serious dental issues',
+            'Professional cleaning and advice',
+            'X-rays if necessary',
+            'Personalized treatment plan'
+        ],
+        'duration' => '30-45 minutes',
+        'frequency' => 'Every 6 months'
+    ],
+    'Teeth Cleaning' => [
+        'description' => 'Professional dental cleaning to remove plaque, tartar, and stains from your teeth. Includes polishing and fluoride treatment for optimal oral health.',
+        'benefits' => [
+            'Removes plaque and tartar buildup',
+            'Prevents gum disease and cavities',
+            'Freshens breath',
+            'Brightens your smile',
+            'Reduces risk of tooth decay'
+        ],
+        'duration' => '45-60 minutes',
+        'frequency' => 'Every 6 months'
+    ],
+    'Teeth Whitening' => [
+        'description' => 'Professional teeth whitening treatment to brighten your smile. Uses safe, effective bleaching agents to remove stains and discoloration.',
+        'benefits' => [
+            'Noticeably whiter teeth (3-8 shades)',
+            'Safe and effective results',
+            'Long-lasting whitening effect',
+            'Boosts confidence',
+            'Professional supervision'
+        ],
+        'duration' => '60-90 minutes',
+        'frequency' => 'Every 1-2 years'
+    ],
+    'Tooth Extraction' => [
+        'description' => 'Safe removal of damaged, decayed, or problematic teeth. Performed with local anesthesia to ensure your comfort throughout the procedure.',
+        'benefits' => [
+            'Relief from tooth pain',
+            'Prevents infection spread',
+            'Makes room for orthodontic treatment',
+            'Removes damaged teeth',
+            'Quick recovery time'
+        ],
+        'duration' => '20-40 minutes',
+        'frequency' => 'As needed'
+    ],
+    'Dental Filling' => [
+        'description' => 'Restoration of teeth damaged by decay using composite materials that match your natural tooth color. Preserves tooth structure and function.',
+        'benefits' => [
+            'Stops cavity progression',
+            'Restores tooth function',
+            'Natural-looking results',
+            'Prevents further decay',
+            'Strengthens damaged teeth'
+        ],
+        'duration' => '30-60 minutes',
+        'frequency' => 'As needed'
+    ],
+    'Root Canal Treatment' => [
+        'description' => 'Advanced treatment to save infected or damaged teeth. Removes infected pulp, cleans the canal, and seals it to prevent further infection.',
+        'benefits' => [
+            'Saves your natural tooth',
+            'Eliminates severe tooth pain',
+            'Prevents abscess formation',
+            'Restores normal function',
+            'Avoids tooth extraction'
+        ],
+        'duration' => '90-120 minutes',
+        'frequency' => 'As needed'
+    ],
+    'Braces Consultation' => [
+        'description' => 'Comprehensive orthodontic evaluation to assess your teeth alignment and bite. Includes discussion of treatment options and personalized recommendations.',
+        'benefits' => [
+            'Expert orthodontic assessment',
+            'Treatment plan customization',
+            'Cost estimate provided',
+            'Timeline discussion',
+            'All questions answered'
+        ],
+        'duration' => '45-60 minutes',
+        'frequency' => 'One-time'
+    ],
+    'Dental Crown' => [
+        'description' => 'Custom-made cap that covers a damaged tooth to restore its shape, size, and strength. Made from durable materials for long-lasting results.',
+        'benefits' => [
+            'Protects weak or damaged teeth',
+            'Restores tooth function',
+            'Natural appearance',
+            'Long-lasting solution',
+            'Improves tooth strength'
+        ],
+        'duration' => '2 visits (1-2 hours each)',
+        'frequency' => 'Lasts 10-15 years'
+    ],
+    'Dental Bridge' => [
+        'description' => 'Fixed prosthetic device to replace one or more missing teeth. Bridges the gap using crowns on adjacent teeth for support.',
+        'benefits' => [
+            'Restores your smile',
+            'Maintains face shape',
+            'Distributes bite forces properly',
+            'Prevents teeth shifting',
+            'Improves chewing ability'
+        ],
+        'duration' => '2-3 visits',
+        'frequency' => 'Lasts 5-15 years'
+    ],
+    'Dental Implant' => [
+        'description' => 'Permanent tooth replacement solution using titanium posts surgically placed in the jawbone. Topped with natural-looking crowns.',
+        'benefits' => [
+            'Permanent tooth replacement',
+            'Looks and feels natural',
+            'Prevents bone loss',
+            'No impact on adjacent teeth',
+            'High success rate (95%+)'
+        ],
+        'duration' => '3-6 months (multiple visits)',
+        'frequency' => 'Lifetime solution'
+    ],
+    'Gum Treatment' => [
+        'description' => 'Treatment for gum disease including deep cleaning, scaling, and root planing. Addresses inflammation and infection to restore gum health.',
+        'benefits' => [
+            'Treats gum disease',
+            'Prevents tooth loss',
+            'Reduces inflammation',
+            'Eliminates bad breath',
+            'Improves overall health'
+        ],
+        'duration' => '60-90 minutes',
+        'frequency' => 'As prescribed'
+    ],
+    'Emergency Dental Care' => [
+        'description' => 'Immediate treatment for urgent dental problems including severe pain, trauma, infections, or lost teeth. Available for dental emergencies.',
+        'benefits' => [
+            'Fast pain relief',
+            'Prevents complications',
+            'Same-day treatment',
+            'Expert emergency care',
+            'Saves damaged teeth'
+        ],
+        'duration' => 'Varies (30-90 minutes)',
+        'frequency' => 'As needed'
+    ],
+    'Pediatric Dentistry' => [
+        'description' => 'Specialized dental care for children from infancy through teenage years. Focuses on prevention, education, and gentle treatment.',
+        'benefits' => [
+            'Child-friendly environment',
+            'Preventive care focus',
+            'Early problem detection',
+            'Builds good dental habits',
+            'Reduces dental anxiety'
+        ],
+        'duration' => '30-45 minutes',
+        'frequency' => 'Every 6 months'
+    ],
+    'Orthodontics' => [
+        'description' => 'Comprehensive treatment to correct misaligned teeth and bite problems using braces or aligners. Improves both function and aesthetics.',
+        'benefits' => [
+            'Straightens teeth',
+            'Improves bite alignment',
+            'Enhances facial aesthetics',
+            'Easier teeth cleaning',
+            'Boosts self-confidence'
+        ],
+        'duration' => '12-24 months',
+        'frequency' => 'One-time treatment'
+    ],
+    'Cosmetic Dentistry' => [
+        'description' => 'Aesthetic dental procedures to enhance your smile including veneers, bonding, and smile makeovers. Combines multiple treatments for optimal results.',
+        'benefits' => [
+            'Complete smile transformation',
+            'Corrects multiple aesthetic issues',
+            'Customized to your goals',
+            'Long-lasting results',
+            'Dramatically improves appearance'
+        ],
+        'duration' => 'Multiple visits',
+        'frequency' => 'Varies by treatment'
+    ]
+];
+
+// Handle direct service booking
+if(isset($_GET['service']) && !empty($_GET['service'])){
+    $selected_service = $database->real_escape_string($_GET['service']);
+    
+    // Redirect to booking page with service pre-selected
+    header("Location: booking.php?service=" . urlencode($selected_service));
+    exit();
+}
 
 // Initialize variables
 $sqlmain = "select * from schedule inner join doctor on schedule.docid=doctor.docid where schedule.scheduledate>='$today' order by schedule.scheduledate asc";
@@ -66,619 +279,70 @@ $result = $database->query($sqlmain);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scheduled Sessions - Dr. Dental Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --primary-color: #667eea;
-            --secondary-color: #764ba2;
-            --text-dark: #2d3748;
-            --text-light: #718096;
-            --bg-light: #f7fafc;
-            --white: #ffffff;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-            --border-radius: 16px;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg-light);
-            color: var(--text-dark);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-lg);
-            z-index: 1000;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-        }
-
-        .sidebar-header {
-            padding: 30px 25px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .logo {
-            width: 50px;
-            height: 50px;
-            background: var(--primary-gradient);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        .logo-text {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-dark);
-        }
-
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: var(--bg-light);
-            border-radius: 12px;
-        }
-
-        .user-avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: var(--primary-gradient);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 20px;
-            font-weight: 600;
-        }
-
-        .user-info h3 {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 3px;
-        }
-
-        .user-info p {
-            font-size: 13px;
-            color: var(--text-light);
-        }
-
-        .nav-menu {
-            padding: 20px 0;
-        }
-
-        .nav-item {
-            margin: 5px 15px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 14px 20px;
-            color: var(--text-light);
-            text-decoration: none;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            font-size: 15px;
-        }
-
-        .nav-link:hover {
-            background: var(--bg-light);
-            color: var(--primary-color);
-            transform: translateX(5px);
-        }
-
-        .nav-link.active {
-            background: var(--primary-gradient);
-            color: white;
-        }
-
-        .nav-link i {
-            font-size: 18px;
-            width: 20px;
-        }
-
-        .logout-btn {
-            margin: 20px 15px;
-            padding: 14px 20px;
-            background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            width: calc(100% - 30px);
-            transition: transform 0.3s ease;
-            font-size: 15px;
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(245, 101, 101, 0.3);
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 280px;
-            min-height: 100vh;
-            padding: 30px;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            background: var(--white);
-            padding: 25px 30px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .welcome-section h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 5px;
-        }
-
-        .welcome-section p {
-            color: var(--text-light);
-            font-size: 15px;
-        }
-
-        .date-section {
-            text-align: right;
-        }
-
-        .date-label {
-            font-size: 13px;
-            color: var(--text-light);
-            margin-bottom: 5px;
-        }
-
-        .date-value {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-dark);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        /* Search Section */
-        .search-section {
-            background: var(--white);
-            padding: 35px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 30px;
-        }
-
-        .search-section h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 10px;
-        }
-
-        .search-section p {
-            color: var(--text-light);
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }
-
-        .search-form {
-            display: flex;
-            gap: 15px;
-        }
-
-        .search-input {
-            flex: 1;
-            padding: 15px 20px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 15px;
-            transition: all 0.3s ease;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .search-btn {
-            padding: 15px 35px;
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 15px;
-            white-space: nowrap;
-        }
-
-        .search-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .service-icon {
-            font-size: 28px;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        /* Services Grid */
-        .services-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .service-card {
-            background: var(--white);
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-dark);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100px;
-        }
-
-        .service-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-color);
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-        }
-
-        .service-card.active {
-            background: var(--primary-gradient);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        /* Sessions Section */
-        .sessions-section {
-            background: var(--white);
-            padding: 30px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-        }
-
-        .section-header h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--text-dark);
-        }
-
-        .results-count {
-            background: var(--primary-gradient);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .keyword-display {
-            background: var(--bg-light);
-            padding: 12px 20px;
-            border-radius: 10px;
-            color: var(--text-light);
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-
-        .keyword-display strong {
-            color: var(--text-dark);
-        }
-
-        /* Sessions Grid */
-        .sessions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 25px;
-        }
-
-        .session-card {
-            background: var(--white);
-            border: 2px solid #e2e8f0;
-            border-radius: var(--border-radius);
-            padding: 25px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .session-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--primary-gradient);
-            transform: scaleY(0);
-            transition: transform 0.3s ease;
-        }
-
-        .session-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-color);
-        }
-
-        .session-card:hover::before {
-            transform: scaleY(1);
-        }
-
-        .session-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 15px;
-            line-height: 1.4;
-        }
-
-        .doctor-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px;
-            background: var(--bg-light);
-            border-radius: 10px;
-            margin-bottom: 15px;
-        }
-
-        .doctor-info i {
-            color: var(--primary-color);
-            font-size: 18px;
-        }
-
-        .doctor-info span {
-            color: var(--text-dark);
-            font-weight: 500;
-            font-size: 15px;
-        }
-
-        .session-details {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .detail-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: var(--text-light);
-            font-size: 14px;
-        }
-
-        .detail-item i {
-            color: var(--primary-color);
-            width: 20px;
-            font-size: 16px;
-        }
-
-        .book-btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .book-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .empty-state i {
-            font-size: 80px;
-            color: #cbd5e0;
-            margin-bottom: 20px;
-        }
-
-        .empty-state h3 {
-            font-size: 20px;
-            color: var(--text-dark);
-            margin-bottom: 10px;
-        }
-
-        .empty-state p {
-            color: var(--text-light);
-            margin-bottom: 20px;
-        }
-
-        .action-btn {
-            padding: 12px 30px;
-            background: var(--primary-gradient);
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.active {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .sessions-grid {
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            }
-        }
-
-        @media (max-width: 768px) {
-            .top-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-
-            .date-section {
-                text-align: left;
-            }
-
-            .date-value {
-                justify-content: flex-start;
-            }
-
-            .search-form {
-                flex-direction: column;
-            }
-
-            .services-grid {
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            }
-
-            .section-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-
-            .sessions-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/dental-clinic-appointment-system/css/schedule.css">
+    <link rel="stylesheet" href="/dental-clinic-appointment-system/css/service-overview-modal.css">
 </head>
 <body>
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <div class="logo-container">
-                <div class="logo">
-                    <i class="fas fa-tooth"></i>
-                </div>
-                <span class="logo-text">Dr. Dental Clinic</span>
-            </div>
-
-            <div class="user-profile">
-                <div class="user-avatar">
+    <!-- Top Navigation Bar -->
+    <nav class="top-nav">
+        <div class="nav-left">
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+           <div class="logo-container">
+    <div class="logo">
+        <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+    </div>
+    <span class="logo-text">Dr. Dental Clinic</span>
+</div>
+        </div>
+        <div class="user-profile-nav">
+            <div class="user-avatar-nav">
+                <?php if (!empty($userprofile) && file_exists('../' . $userprofile)): ?>
+                    <img src="../<?php echo htmlspecialchars($userprofile); ?>" alt="Profile" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                <?php else: ?>
                     <?php echo htmlspecialchars(strtoupper(substr($username, 0, 2))); ?>
-                </div>
-                <div class="user-info">
-                    <h3><?php echo htmlspecialchars(substr($username, 0, 15)); ?></h3>
-                    <p><?php echo htmlspecialchars(substr($useremail, 0, 20)); ?></p>
-                </div>
+                <?php endif; ?>
+            </div>
+            <div class="user-info-nav">
+                <h4><?php echo htmlspecialchars(substr($username, 0, 15)); ?></h4>
+                <p>Patient</p>
             </div>
         </div>
+    </nav>
 
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
         <nav class="nav-menu">
+            <div class="nav-section-title">MAIN MENU</div>
             <div class="nav-item">
                 <a href="index.php" class="nav-link">
                     <i class="fas fa-home"></i>
-                    <span>Home</span>
+                    <span>Dashboard</span>
                 </a>
             </div>
             <div class="nav-item">
                 <a href="schedule.php" class="nav-link active">
                     <i class="fas fa-calendar-alt"></i>
-                    <span>Scheduled Sessions</span>
+                    <span>Available Sessions</span>
                 </a>
             </div>
+            
+            <div class="nav-section-title">MY APPOINTMENTS</div>
             <div class="nav-item">
                 <a href="booking.php" class="nav-link">
                     <i class="fas fa-calendar-check"></i>
-                    <span>My Bookings</span>
+                    <span>Book Appointment</span>
                 </a>
             </div>
-             <div class="nav-item">
+            <div class="nav-item">
                 <a href="appointment-history.php" class="nav-link">
                     <i class="fas fa-history"></i>
                     <span>Appointment History</span>
                 </a>
             </div>
+            
+            <div class="nav-section-title">ACCOUNT</div>
             <div class="nav-item">
                 <a href="settings.php" class="nav-link">
                     <i class="fas fa-cog"></i>
@@ -687,248 +351,322 @@ $result = $database->query($sqlmain);
             </div>
         </nav>
 
-        <button class="logout-btn" onclick="window.location.href='../logout.php'">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
+        <div class="logout-section">
+            <button class="logout-btn" onclick="window.location.href='../logout.php'">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
     </aside>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="welcome-section">
-                <h1>Available Sessions 📅</h1>
-                <p>Browse and book your medical appointments</p>
-            </div>
-            <div class="date-section">
-                <div class="date-label">Today's Date</div>
-                <div class="date-value">
-                    <i class="fas fa-calendar"></i>
-                    <?php echo date('F j, Y'); ?>
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1>Available Services & Sessions 📅</h1>
+                    <p>Choose a service and book your dental appointment</p>
+                </div>
+                <div class="header-right">
+                    <div class="date-label">Today's Date</div>
+                    <div class="date-value">
+                        <i class="fas fa-calendar"></i>
+                        <?php echo date('F j, Y'); ?>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Services Section -->
-        <div class="search-section">
-            <h2>Choose a Service</h2>
-            <p>Select a dental service to view available sessions</p>
+        <div class="services-section">
+            <h2 class="section-title">🦷 Choose a Dental Service</h2>
+            <p class="section-subtitle">Select a service to book your appointment and view pricing</p>
             
-            <div class="services-grid">
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="General Checkup" class="service-card">
-                        <span class="service-icon">🔍</span>
-                        <span>General Checkup</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Teeth Cleaning" class="service-card">
-                        <span class="service-icon">✨</span>
-                        <span>Teeth Cleaning</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Teeth Whitening" class="service-card">
-                        <span class="service-icon">💎</span>
-                        <span>Teeth Whitening</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Tooth Extraction" class="service-card">
-                        <span class="service-icon">🦷</span>
-                        <span>Tooth Extraction</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Dental Filling" class="service-card">
-                        <span class="service-icon">🔧</span>
-                        <span>Dental Filling</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Root Canal Treatment" class="service-card">
-                        <span class="service-icon">🏥</span>
-                        <span>Root Canal Treatment</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Braces Consultation" class="service-card">
-                        <span class="service-icon">🔩</span>
-                        <span>Braces Consultation</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Dental Crown" class="service-card">
-                        <span class="service-icon">👑</span>
-                        <span>Dental Crown</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Dental Bridge" class="service-card">
-                        <span class="service-icon">🌉</span>
-                        <span>Dental Bridge</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Dental Implant" class="service-card">
-                        <span class="service-icon">⚙️</span>
-                        <span>Dental Implant</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Gum Treatment" class="service-card">
-                        <span class="service-icon">🌸</span>
-                        <span>Gum Treatment</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Emergency Dental Care" class="service-card">
-                        <span class="service-icon">🚨</span>
-                        <span>Emergency Dental Care</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Pediatric Dentistry" class="service-card">
-                        <span class="service-icon">👶</span>
-                        <span>Pediatric Dentistry</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Orthodontics" class="service-card">
-                        <span class="service-icon">😁</span>
-                        <span>Orthodontics</span>
-                    </button>
-                </form>
-                
-                <form action="" method="post" style="display: contents;">
-                    <button type="submit" name="service" value="Cosmetic Dentistry" class="service-card">
-                        <span class="service-icon">💄</span>
-                        <span>Cosmetic Dentistry</span>
-                    </button>
-                </form>
+         <!-- STEP 1: Replace your services grid section with this -->
+<div class="services-grid">
+    <?php foreach($service_prices as $service => $price): ?>
+        <div class="service-card <?php echo ($selectedService == $service) ? 'active' : ''; ?>">
+            <span class="service-icon">
+                <?php
+                $icons = [
+                    'General Checkup' => '🔍',
+                    'Teeth Cleaning' => '✨',
+                    'Teeth Whitening' => '💎',
+                    'Tooth Extraction' => '🦷',
+                    'Dental Filling' => '🔧',
+                    'Root Canal Treatment' => '🏥',
+                    'Braces Consultation' => '🔩',
+                    'Dental Crown' => '👑',
+                    'Dental Bridge' => '🌉',
+                    'Dental Implant' => '⚙️',
+                    'Gum Treatment' => '🌸',
+                    'Emergency Dental Care' => '🚨',
+                    'Pediatric Dentistry' => '👶',
+                    'Orthodontics' => '😁',
+                    'Cosmetic Dentistry' => '💄'
+                ];
+                echo $icons[$service] ?? '🦷';
+                ?>
+            </span>
+            <span class="service-name"><?php echo htmlspecialchars($service); ?></span>
+            <span class="service-price">₱<?php echo number_format($price); ?></span>
+            
+            <div class="service-card-actions">
+                <button type="button" 
+                        class="view-overview-btn" 
+                        data-service-name="<?php echo htmlspecialchars($service); ?>">
+                    <i class="fas fa-info-circle"></i> Overview
+                </button>
+                <button type="button" 
+                        class="quick-book-btn" 
+                        onclick="window.location.href='?service=<?php echo urlencode($service); ?>'">
+                    <i class="fas fa-calendar-plus"></i> Book Now
+                </button>
             </div>
         </div>
+    <?php endforeach; ?>
+</div>
 
-        <!-- Search Section -->
-        <div class="search-section">
-            <h2>Find a Session</h2>
-            <p>Search for a doctor, session title, or date to find available appointments</p>
-            <form action="" method="post" class="search-form">
-                <div class="search-row">
-                    <input 
-                        type="search" 
-                        name="search" 
-                        class="search-input" 
-                        placeholder="Search by doctor name, session title, or date (YYYY-MM-DD)..."
-                        list="doctors"
-                        value="<?php echo htmlspecialchars($insertkey); ?>"
-                    >
-                    <datalist id="doctors">
-                        <?php
-                        $list11 = $database->query("select DISTINCT docname from doctor;");
-                        $list12 = $database->query("select DISTINCT title from schedule GROUP BY title;");
+<!-- STEP 2: Replace ALL your existing modal-related JavaScript with this -->
+<script>
+// Service overview data from PHP
+const serviceOverviewData = <?php echo json_encode($service_overview); ?>;
+const servicePrices = <?php echo json_encode($service_prices); ?>;
+const serviceIcons = {
+    'General Checkup': '🔍',
+    'Teeth Cleaning': '✨',
+    'Teeth Whitening': '💎',
+    'Tooth Extraction': '🦷',
+    'Dental Filling': '🔧',
+    'Root Canal Treatment': '🏥',
+    'Braces Consultation': '🔩',
+    'Dental Crown': '👑',
+    'Dental Bridge': '🌉',
+    'Dental Implant': '⚙️',
+    'Gum Treatment': '🌸',
+    'Emergency Dental Care': '🚨',
+    'Pediatric Dentistry': '👶',
+    'Orthodontics': '😁',
+    'Cosmetic Dentistry': '💄'
+};
 
-                        if($list11){
-                            while($row00 = $list11->fetch_assoc()){
-                                echo "<option value='".htmlspecialchars($row00["docname"])."'>";
-                            }
-                        }
+let currentService = '';
 
-                        if($list12){
-                            while($row00 = $list12->fetch_assoc()){
-                                echo "<option value='".htmlspecialchars($row00["title"])."'>";
-                            }
-                        }
-                        ?>
-                    </datalist>
-                    <button type="submit" class="search-btn">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-            </form>
-        </div>
+// Initialize modal functionality when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing modal functionality...');
+    
+    // Attach event listeners to all overview buttons
+    const overviewButtons = document.querySelectorAll('.view-overview-btn');
+    console.log('Found', overviewButtons.length, 'overview buttons');
+    
+    overviewButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const serviceName = this.getAttribute('data-service-name');
+            console.log('Button clicked for service:', serviceName);
+            
+            if (serviceName) {
+                openServiceModal(serviceName);
+            } else {
+                console.error('No service name found on button');
+            }
+        });
+    });
+    
+    // Close modal when clicking outside
+    const modal = document.getElementById('serviceOverviewModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeServiceModal();
+            }
+        });
+    }
+    
+    // Close modal on ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeServiceModal();
+        }
+    });
+});
 
-        <!-- Sessions Section -->
-        <div class="sessions-section">
-            <div class="section-header">
-                <h2><?php echo htmlspecialchars($searchtype); ?> Sessions</h2>
-                <span class="results-count"><?php echo $result->num_rows; ?> found</span>
+function openServiceModal(serviceName) {
+    console.log('Opening modal for:', serviceName);
+    
+    currentService = serviceName;
+    const modal = document.getElementById('serviceOverviewModal');
+    
+    if (!modal) {
+        console.error('Modal element not found!');
+        return;
+    }
+    
+    const overview = serviceOverviewData[serviceName];
+    
+    if (!overview) {
+        console.error('No overview data found for:', serviceName);
+        return;
+    }
+    
+    // Update modal content
+    const iconElement = document.getElementById('modalServiceIcon');
+    const titleElement = document.getElementById('modalServiceTitle');
+    const priceElement = document.getElementById('modalServicePrice');
+    const descElement = document.getElementById('modalDescription');
+    const benefitsElement = document.getElementById('modalBenefits');
+    const durationElement = document.getElementById('modalDuration');
+    const frequencyElement = document.getElementById('modalFrequency');
+    
+    // Check if all elements exist
+    if (!iconElement || !titleElement || !priceElement || !descElement || 
+        !benefitsElement || !durationElement || !frequencyElement) {
+        console.error('Some modal elements are missing!');
+        return;
+    }
+    
+    // Set content
+    iconElement.textContent = serviceIcons[serviceName] || '🦷';
+    titleElement.textContent = serviceName;
+    
+    const price = servicePrices[serviceName] || 0;
+    priceElement.textContent = '₱' + price.toLocaleString();
+    
+    descElement.textContent = overview.description;
+    
+    // Clear and populate benefits
+    benefitsElement.innerHTML = '';
+    overview.benefits.forEach(function(benefit) {
+        const li = document.createElement('li');
+        li.textContent = benefit;
+        benefitsElement.appendChild(li);
+    });
+    
+    durationElement.textContent = overview.duration;
+    frequencyElement.textContent = overview.frequency;
+    
+    // Show modal
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    console.log('Modal opened successfully');
+}
+
+function closeServiceModal() {
+    console.log('Closing modal');
+    const modal = document.getElementById('serviceOverviewModal');
+    
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
+function bookService() {
+    if (currentService) {
+        window.location.href = 'booking.php?service=' + encodeURIComponent(currentService);
+    }
+}
+
+// Sidebar toggle function
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    
+    sidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+}
+
+// Close sidebar when clicking outside on mobile
+document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const menuToggle = document.querySelector('.menu-toggle');
+    
+    if (sidebar && menuToggle) {
+        const isClickInside = sidebar.contains(event.target) || menuToggle.contains(event.target);
+        
+        if (!isClickInside && window.innerWidth <= 1024) {
+            sidebar.classList.remove('active');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (overlay) {
+                overlay.classList.remove('active');
+            }
+        }
+    }
+});
+</script>
+<!-- SERVICE OVERVIEW MODAL -->
+<!-- Place this RIGHT BEFORE the closing </body> tag in schedule.php -->
+
+<!-- Service Overview Modal -->
+<div id="serviceOverviewModal" class="service-overview-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <button class="modal-close" onclick="closeServiceModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-title-wrapper">
+                <span class="modal-service-icon" id="modalServiceIcon">🦷</span>
+                <h2 class="modal-service-title" id="modalServiceTitle">Service Name</h2>
             </div>
-
-            <?php if($insertkey != "" || $selectedService != ""): ?>
-                <div class="keyword-display">
-                    <?php if($selectedService != ""): ?>
-                        <i class="fas fa-filter"></i> Filtered by Service: <strong>"<?php echo htmlspecialchars($selectedService); ?>"</strong>
-                    <?php endif; ?>
-                    <?php if($insertkey != ""): ?>
-                        <?php if($selectedService != ""): ?> | <?php endif; ?>
-                        <i class="fas fa-search"></i> Search: <strong>"<?php echo htmlspecialchars($insertkey); ?>"</strong>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if($result->num_rows == 0): ?>
-                <div class="empty-state">
-                    <i class="fas fa-calendar-times"></i>
-                    <h3>No Sessions Found</h3>
-                    <p>We couldn't find any sessions matching your search criteria.</p>
-                    <a href="schedule.php" class="action-btn">
-                        <i class="fas fa-list"></i> Show All Sessions
-                    </a>
-                </div>
-            <?php else: ?>
-                <div class="sessions-grid">
-                    <?php
-                    while($row = $result->fetch_assoc()){
-                        $scheduleid = htmlspecialchars($row["scheduleid"]);
-                        $title = htmlspecialchars($row["title"]);
-                        $docname = htmlspecialchars($row["docname"]);
-                        $scheduledate = htmlspecialchars($row["scheduledate"]);
-                        $scheduletime = htmlspecialchars($row["scheduletime"]);
-                    ?>
-                        <div class="session-card">
-                            <h3 class="session-title"><?php echo substr($title, 0, 50); ?></h3>
-                            
-                            <div class="doctor-info">
-                                <i class="fas fa-user-md"></i>
-                                <span><?php echo substr($docname, 0, 30); ?></span>
-                            </div>
-
-                            <div class="session-details">
-                                <div class="detail-item">
-                                    <i class="fas fa-calendar"></i>
-                                    <span><?php echo date('F j, Y', strtotime($scheduledate)); ?></span>
-                                </div>
-                                <div class="detail-item">
-                                    <i class="fas fa-clock"></i>
-                                    <span>Starts at <strong><?php echo date('g:i A', strtotime($scheduletime)); ?></strong></span>
-                                </div>
-                            </div>
-
-                            <a href="booking.php?id=<?php echo $scheduleid; ?>" style="text-decoration: none;">
-                                <button class="book-btn">
-                                    <i class="fas fa-calendar-plus"></i>
-                                    My Bookings
-                                </button>
-                            </a>
-                        </div>
-                    <?php } ?>
-                </div>
-            <?php endif; ?>
+            <div class="modal-service-price" id="modalServicePrice">₱0</div>
         </div>
-    </main>
+        
+        <div class="modal-body">
+            <div class="overview-section">
+                <h3 class="overview-heading">
+                    <i class="fas fa-info-circle"></i>
+                    Description
+                </h3>
+                <p class="overview-text" id="modalDescription">Service description</p>
+            </div>
+            
+            <div class="overview-section">
+                <h3 class="overview-heading">
+                    <i class="fas fa-check-circle"></i>
+                    Benefits
+                </h3>
+                <ul class="benefits-list" id="modalBenefits">
+                    <!-- Benefits will be populated here -->
+                </ul>
+            </div>
+            
+            <div class="overview-section">
+                <h3 class="overview-heading">
+                    <i class="fas fa-clock"></i>
+                    Time & Frequency
+                </h3>
+                <div class="duration-info">
+                    <div class="duration-item">
+                        <div class="duration-label">Duration</div>
+                        <div class="duration-value" id="modalDuration">-</div>
+                    </div>
+                    <div class="duration-item">
+                        <div class="duration-label">Recommended</div>
+                        <div class="duration-value" id="modalFrequency">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button class="modal-cancel-btn" onclick="closeServiceModal()">
+                <i class="fas fa-times"></i>
+                Close
+            </button>
+            <button class="modal-book-btn" id="modalBookBtn" onclick="bookService()">
+                <i class="fas fa-calendar-plus"></i>
+                Book Appointment
+            </button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
