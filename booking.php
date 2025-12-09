@@ -1133,7 +1133,7 @@ $appointments_query = $database->query("
                 <i class="fas fa-home"></i>
                 Dashboard
             </a>
-            <a href="booking.php" class="quick-link">
+            <a href="patient/appointment-history.php" class="quick-link">
                 <i class="fas fa-calendar-check"></i>
                 My Appointments
             </a>
@@ -1146,205 +1146,275 @@ $appointments_query = $database->query("
 </div>
 
 <script>
-    let currentDate = new Date();
-    let selectedDate = null;
-    let selectedTime = null;
-    let bookedDates = {};
-    
-    // FIXED: Business hours 8 AM to 5 PM with correct format (HH:MM)
-    const timeSlots = [
-        '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-        '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-        '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-    ];
+    // Replace the <script> section in your second booking.php file with this:
 
-    // Initialize calendar
-    function initCalendar() {
-        renderCalendar();
-        fetchBookedDates();
-    }
+let currentDate = new Date();
+let selectedDate = null;
+let selectedTime = null;
+let bookedDates = {};
+
+// FIXED: Business hours 8 AM to 5 PM with correct format (HH:MM)
+const timeSlots = [
+    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+    '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
+];
+
+// Helper function to check if a date is Sunday
+function isSunday(dateStr) {
+    const date = new Date(dateStr);
+    return date.getDay() === 0; // 0 = Sunday
+}
+
+// Initialize calendar
+function initCalendar() {
+    renderCalendar();
+    fetchBookedDates();
+}
+
+// Fetch all booked dates for the current month
+function fetchBookedDates() {
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     
-    // Fetch all booked dates for the current month
-    function fetchBookedDates() {
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        
-        fetch(`?check_month_slots=1&year=${year}&month=${month}`)
-            .then(response => response.json())
-            .then(data => {
-                bookedDates = data.booked_dates || {};
-                renderCalendar();
-            })
-            .catch(error => {
-                console.error('Error fetching booked dates:', error);
-                bookedDates = {};
-                renderCalendar();
-            });
-    }
-    
-    // Render calendar
-    function renderCalendar() {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        
-        // Update header
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-        document.getElementById('currentMonthYear').textContent = `${monthNames[month]} ${year}`;
-        
-        // Get first day of month and number of days
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Create calendar grid
-        let calendarHTML = '';
-        
-        // Day headers
-        const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        dayHeaders.forEach(day => {
-            calendarHTML += `<div class="calendar-day-header">${day}</div>`;
+    fetch(`?check_month_slots=1&year=${year}&month=${month}`)
+        .then(response => response.json())
+        .then(data => {
+            bookedDates = data.booked_dates || {};
+            renderCalendar();
+        })
+        .catch(error => {
+            console.error('Error fetching booked dates:', error);
+            bookedDates = {};
+            renderCalendar();
         });
+}
+
+// Render calendar
+function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Update header
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+    document.getElementById('currentMonthYear').textContent = `${monthNames[month]} ${year}`;
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Create calendar grid
+    let calendarHTML = '';
+    
+    // Day headers
+    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayHeaders.forEach(day => {
+        calendarHTML += `<div class="calendar-day-header">${day}</div>`;
+    });
+    
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        calendarHTML += '<div class="calendar-day empty"></div>';
+    }
+    
+    // Days of month
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayOfWeek = dateObj.getDay();
+        const isPast = dateObj < today;
+        const isSundayDate = dayOfWeek === 0;
+        const isSelected = selectedDate === dateStr;
+        const bookingCount = bookedDates[dateStr] || 0;
+        const hasBooking = bookingCount > 0;
         
-        // Empty cells before first day
-        for (let i = 0; i < firstDay; i++) {
-            calendarHTML += '<div class="calendar-day empty"></div>';
+        let classes = 'calendar-day';
+        let style = '';
+        
+        // Disable past dates OR Sundays
+        if (isPast || isSundayDate) {
+            classes += ' past';
+            if (isSundayDate) {
+                style = 'color: #e74c3c; font-weight: bold;';
+            }
         }
         
-        // Days of month
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateObj = new Date(year, month, day);
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isPast = dateObj < today;
-            const isSelected = selectedDate === dateStr;
-            const bookingCount = bookedDates[dateStr] || 0;
-            const hasBooking = bookingCount > 0;
-            
-            let classes = 'calendar-day';
-            if (isPast) classes += ' past';
-            if (isSelected) classes += ' selected';
-            if (hasBooking && !isPast) classes += ' has-booking';
-            
-            const bookingCountHtml = hasBooking ? `<span class="booking-count">${bookingCount} booked</span>` : '';
-            
-            calendarHTML += `
-                <div class="${classes}" onclick="selectDate('${dateStr}', ${isPast})">
-                    ${day}
-                    ${bookingCountHtml}
-                </div>
-            `;
+        if (isSelected) classes += ' selected';
+        if (hasBooking && !isPast && !isSundayDate) classes += ' has-booking';
+        
+        const bookingCountHtml = (hasBooking && !isSundayDate) ? `<span class="booking-count">${bookingCount} booked</span>` : '';
+        const title = isSundayDate ? 'title="Clinic closed on Sundays"' : '';
+        
+        calendarHTML += `
+            <div class="${classes}" style="${style}" ${title} onclick="selectDate('${dateStr}', ${isPast || isSundayDate})">
+                ${day}
+                ${bookingCountHtml}
+            </div>
+        `;
+    }
+    
+    document.getElementById('calendarGrid').innerHTML = calendarHTML;
+}
+
+// Change month
+function changeMonth(direction) {
+    currentDate.setMonth(currentDate.getMonth() + direction);
+    selectedDate = null;
+    selectedTime = null;
+    document.getElementById('timeSlotsContainer').classList.remove('show');
+    updateSubmitButton();
+    renderCalendar();
+    fetchBookedDates();
+}
+
+// Select date
+function selectDate(dateStr, isDisabled) {
+    if (isDisabled) {
+        if (isSunday(dateStr)) {
+            alert('Clinic is closed on Sundays. Please select another date.');
         }
-        
-        document.getElementById('calendarGrid').innerHTML = calendarHTML;
+        return;
     }
     
-    // Change month
-    function changeMonth(direction) {
-        currentDate.setMonth(currentDate.getMonth() + direction);
-        selectedDate = null;
-        selectedTime = null;
-        document.getElementById('timeSlotsContainer').classList.remove('show');
-        updateSubmitButton();
-        renderCalendar();
-        fetchBookedDates();
+    // Double check it's not Sunday
+    if (isSunday(dateStr)) {
+        alert('Clinic is closed on Sundays. Please select another date.');
+        return;
     }
     
-    // Select date
-    function selectDate(dateStr, isPast) {
-        if (isPast) return;
+    selectedDate = dateStr;
+    selectedTime = null;
+    renderCalendar();
+    loadTimeSlots(dateStr);
+    updateSubmitButton();
+}
+
+// Load time slots for selected date
+function loadTimeSlots(dateStr) {
+    // Check if trying to load slots for Sunday
+    if (isSunday(dateStr)) {
+        const timeSlotsGrid = document.getElementById('timeSlotsGrid');
+        timeSlotsGrid.innerHTML = '<p style="color:#e74c3c; text-align:center; padding: 20px; font-weight: bold;"><i class="fas fa-ban"></i> Clinic is closed on Sundays. Please select another date.</p>';
+        document.getElementById('availableSlotsCount').textContent = '0';
+        document.getElementById('timeSlotsContainer').classList.add('show');
         
-        selectedDate = dateStr;
-        selectedTime = null;
-        renderCalendar();
-        loadTimeSlots(dateStr);
-        updateSubmitButton();
-    }
-    
-    // Load time slots for selected date
-    function loadTimeSlots(dateStr) {
-        fetch(`?check_slots=1&date=${dateStr}`)
-            .then(response => response.json())
-            .then(data => {
-                const bookedSlots = data.booked_slots || [];
-                let slotsHTML = '';
-                let availableCount = 0;
-                
-                timeSlots.forEach(time => {
-                    const isBooked = bookedSlots.includes(time);
-                    const classes = isBooked ? 'time-slot booked' : 'time-slot';
-                    const onclick = isBooked ? '' : `onclick="selectTime('${time}')"`;
-                    
-                    if (!isBooked) availableCount++;
-                    
-                    slotsHTML += `<div class="${classes}" ${onclick}>${time}</div>`;
-                });
-                
-                document.getElementById('timeSlotsGrid').innerHTML = slotsHTML;
-                document.getElementById('availableSlotsCount').textContent = availableCount;
-                document.getElementById('timeSlotsContainer').classList.add('show');
-                
-                // Show message if no slots available
-                if (availableCount === 0) {
-                    const indicator = document.getElementById('slot-indicator');
-                    const message = document.getElementById('slot-message');
-                    indicator.className = 'time-slot-indicator booked';
-                    message.textContent = 'All time slots are booked for this date. Please select another date.';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading time slots:', error);
-                document.getElementById('timeSlotsGrid').innerHTML = '<p style="text-align:center;color:#999;">Error loading time slots. Please try again.</p>';
-            });
-    }
-    
-    // Select time
-    function selectTime(time) {
-        selectedTime = time;
-        
-        // Update UI
-        document.querySelectorAll('.time-slot').forEach(slot => {
-            slot.classList.remove('selected');
-        });
-        event.target.classList.add('selected');
-        
-        // Update hidden form fields
-        document.getElementById('appointment_date').value = selectedDate;
-        document.getElementById('appointment_time').value = time;
-        
-        // Show confirmation
         const indicator = document.getElementById('slot-indicator');
         const message = document.getElementById('slot-message');
-        indicator.className = 'time-slot-indicator available';
-        
-        const dateObj = new Date(selectedDate);
-        const formattedDate = dateObj.toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+        indicator.className = 'time-slot-indicator booked';
+        message.textContent = 'Clinic is closed on Sundays. Please select another date.';
+        return;
+    }
+    
+    fetch(`?check_slots=1&date=${dateStr}`)
+        .then(response => response.json())
+        .then(data => {
+            const bookedSlots = data.booked_slots || [];
+            let slotsHTML = '';
+            let availableCount = 0;
+            
+            timeSlots.forEach(time => {
+                const isBooked = bookedSlots.includes(time);
+                const classes = isBooked ? 'time-slot booked' : 'time-slot';
+                const onclick = isBooked ? '' : `onclick="selectTime('${time}')"`;
+                
+                if (!isBooked) availableCount++;
+                
+                slotsHTML += `<div class="${classes}" ${onclick}>${time}</div>`;
+            });
+            
+            document.getElementById('timeSlotsGrid').innerHTML = slotsHTML;
+            document.getElementById('availableSlotsCount').textContent = availableCount;
+            document.getElementById('timeSlotsContainer').classList.add('show');
+            
+            // Show message if no slots available
+            if (availableCount === 0) {
+                const indicator = document.getElementById('slot-indicator');
+                const message = document.getElementById('slot-message');
+                indicator.className = 'time-slot-indicator booked';
+                message.textContent = 'All time slots are booked for this date. Please select another date.';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading time slots:', error);
+            document.getElementById('timeSlotsGrid').innerHTML = '<p style="text-align:center;color:#999;">Error loading time slots. Please try again.</p>';
         });
-        
-        message.textContent = `Selected: ${formattedDate} at ${time}`;
-        
-        updateSubmitButton();
+}
+
+// Select time
+function selectTime(time) {
+    selectedTime = time;
+    
+    // Update UI
+    document.querySelectorAll('.time-slot').forEach(slot => {
+        slot.classList.remove('selected');
+    });
+    event.target.classList.add('selected');
+    
+    // Update hidden form fields
+    document.getElementById('appointment_date').value = selectedDate;
+    document.getElementById('appointment_time').value = time;
+    
+    // Show confirmation
+    const indicator = document.getElementById('slot-indicator');
+    const message = document.getElementById('slot-message');
+    indicator.className = 'time-slot-indicator available';
+    
+    const dateObj = new Date(selectedDate);
+    const formattedDate = dateObj.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+    
+    message.textContent = `Selected: ${formattedDate} at ${time}`;
+    
+    updateSubmitButton();
+}
+
+// Update submit button state
+function updateSubmitButton() {
+    const serviceSelected = document.getElementById('service_type').value !== '';
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (selectedDate && selectedTime && serviceSelected) {
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
+
+// Form validation before submission
+document.getElementById('bookingForm').addEventListener('submit', function(e) {
+    // Check if trying to book on Sunday
+    if (selectedDate && isSunday(selectedDate)) {
+        e.preventDefault();
+        alert('Cannot book appointments on Sundays. Clinic is closed.');
+        return false;
     }
     
-    // Update submit button state
-    function updateSubmitButton() {
-        const serviceSelected = document.getElementById('service_type').value !== '';
-        const submitBtn = document.getElementById('submitBtn');
-        
-        if (selectedDate && selectedTime && serviceSelected) {
-            submitBtn.disabled = false;
-        } else {
-            submitBtn.disabled = true;
-        }
+    if (!selectedDate || !selectedTime) {
+        e.preventDefault();
+        alert('Please select a date and time slot.');
+        return false;
     }
     
-    // Listen for service type change
-    document.getElementById('service_type').addEventListener('change', updateSubmitButton);
+    const serviceSelected = document.getElementById('service_type').value !== '';
+    if (!serviceSelected) {
+        e.preventDefault();
+        alert('Please select a service type.');
+        return false;
+    }
     
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', initCalendar);
+    return true;
+});
+
+// Listen for service type change
+document.getElementById('service_type').addEventListener('change', updateSubmitButton);
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', initCalendar);
 </script>

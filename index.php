@@ -247,7 +247,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         <!-- Copyright Section -->
         <div class="footer-bottom">
             <p>&copy; <?php echo date('Y'); ?> All Rights Reserved By <?php echo e($clinicSettings['name']); ?></p>
-            <p>Developer : Christian James B. Ortouste</p>
+            <p>Developer : Christian Pogi</p>
         </div>
     </footer>
 

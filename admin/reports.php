@@ -247,7 +247,7 @@
     <div class="sidebar-header">
     <div class="logo-icon"><i class="fas fa-tooth"></i></div>
     <div class="logo-text">
-    <h2>Dr. Dental Clinic</h2>
+    <h2>Dr. Dental Clinic Care</h2>
     <p>Admin Portal</p>
     </div>
     </div>

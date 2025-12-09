@@ -494,6 +494,8 @@ $appointments_query = $database->query("
 
 // Replace the entire <script> section in your booking.php file with this:
 
+// Replace the entire <script> section in your booking.php file with this:
+
 // Global State
 let currentCalendarDate = new Date();
 const today = new Date();
@@ -549,6 +551,11 @@ function formatDate(date) {
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+}
+
+function isSunday(dateStr) {
+    const date = new Date(dateStr);
+    return date.getDay() === 0; // 0 = Sunday
 }
 
 function resetSlotSelection() {
@@ -618,14 +625,19 @@ function renderCalendar() {
     for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const dateStr = formatDate(date);
+        const dayOfWeek = date.getDay();
         
         const dayDiv = document.createElement('div');
         dayDiv.classList.add('calendar-day');
         dayDiv.textContent = day;
         
-        // Disable past dates
-        if (dateStr < todayStr) {
+        // Disable past dates OR Sundays
+        if (dateStr < todayStr || dayOfWeek === 0) {
             dayDiv.classList.add('disabled');
+            if (dayOfWeek === 0) {
+                dayDiv.style.color = '#e74c3c'; // Red color for Sundays
+                dayDiv.title = 'Clinic closed on Sundays';
+            }
         } else {
             dayDiv.dataset.date = dateStr;
             dayDiv.addEventListener('click', () => selectDate(dayDiv));
@@ -635,8 +647,8 @@ function renderCalendar() {
             }
         }
         
-        // Add booking indicator
-        if (bookedDatesInMonth[day]) {
+        // Add booking indicator (only for non-Sundays)
+        if (bookedDatesInMonth[day] && dayOfWeek !== 0) {
             const indicatorSpan = document.createElement('span');
             indicatorSpan.classList.add('booking-indicator');
             dayDiv.appendChild(indicatorSpan);
@@ -651,6 +663,12 @@ function renderTimeSlots(bookedSlots) {
     
     if (!selectedDate) {
         timeSlotsList.innerHTML = '<p style="color:var(--gray-500); text-align:center; padding: 20px;">Please select a date from the calendar.</p>';
+        return;
+    }
+
+    // Check if selected date is Sunday
+    if (isSunday(selectedDate)) {
+        timeSlotsList.innerHTML = '<p style="color:#e74c3c; text-align:center; padding: 20px; font-weight: bold;"><i class="fas fa-ban"></i> Clinic is closed on Sundays. Please select another date.</p>';
         return;
     }
 
@@ -708,6 +726,12 @@ function selectDate(dayElement) {
     
     if (selectedDate === newDate) return;
     
+    // Check if trying to select a Sunday
+    if (isSunday(newDate)) {
+        alert('Clinic is closed on Sundays. Please select another date.');
+        return;
+    }
+    
     document.querySelectorAll('.calendar-day.selected').forEach(d => d.classList.remove('selected'));
     
     selectedDate = newDate;
@@ -761,6 +785,13 @@ bookingForm.addEventListener('submit', function(e) {
     console.log('Date Input Value:', dateInput.value);
     console.log('Time Input Value:', timeInput.value);
     console.log('Service:', serviceTypeInput.value);
+    
+    // Check if trying to book on Sunday
+    if (dateInput.value && isSunday(dateInput.value)) {
+        e.preventDefault();
+        alert('Cannot book appointments on Sundays. Clinic is closed.');
+        return false;
+    }
     
     if (!dateInput.value || !timeInput.value || !serviceTypeInput.value) {
         e.preventDefault();

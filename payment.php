@@ -128,8 +128,12 @@ if ($database->query($update_query)) {
             color: white;
         }
         
-        .logo-icon {
-            font-size: 40px;
+        .logo-section img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         
         .logo-text h1 {
@@ -459,6 +463,11 @@ if ($database->query($update_query)) {
             .logo-text h1 {
                 font-size: 22px;
             }
+            
+            .logo-section img {
+                width: 50px;
+                height: 50px;
+            }
         }
     </style>
 </head>
@@ -466,7 +475,7 @@ if ($database->query($update_query)) {
     <div class="container">
         <div class="header">
             <div class="logo-section">
-                <i class="fas fa-tooth logo-icon"></i>
+                <img src="img/images.png" alt="Dr. Dental Clinic Logo">
                 <div class="logo-text">
                     <h1>Dr. Dental Care Center</h1>
                     <p>Secure Payment Gateway</p>
@@ -582,6 +591,7 @@ if ($database->query($update_query)) {
                     </h3>
                     
                     <form method="POST" action="">
+                        <div class="payment-methods">
                             <div class="payment-method">
                                 <input type="radio" name="payment_method" id="gcash" value="GCash" required>
                                 <label for="gcash">
@@ -638,7 +648,7 @@ if ($database->query($update_query)) {
                     </p>
                 </div>
                 
-                <a href="booking.php" class="submit-btn" style="text-decoration: none;">
+                <a href="patient/appointment-history.php" class="submit-btn" style="text-decoration: none;">
                     <i class="fas fa-calendar-check"></i>
                     View My Appointments
                 </a>

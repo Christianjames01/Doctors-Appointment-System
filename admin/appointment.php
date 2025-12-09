@@ -203,7 +203,7 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
         <div class="sidebar-header">
             <div class="logo-icon"><i class="fas fa-tooth"></i></div>
             <div class="logo-text">
-                <h2>Dr. Dental Clinic</h2>
+                <h2>Dr. Dental Clinic Care</h2>
                 <p>Admin Portal</p>
             </div>
         </div>
@@ -514,166 +514,229 @@ function e($v) { return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8'); }
 </main>
 
 <script>
-    // Toggle sidebar function
+    // Real-time search function
+    function initRealtimeSearch() {
+        const searchInput = document.querySelector('input[name="search"]');
+        const statusSelect = document.querySelector('select[name="status"]');
+        const paymentSelect = document.querySelector('select[name="payment"]');
+        const tableBody = document.querySelector('table tbody');
+        const resultCount = document.querySelector('.table-header span');
+        
+        let allRows = Array.from(tableBody?.querySelectorAll('tr') || []);
+        
+        function filterTable() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            const statusFilter = statusSelect.value;
+            const paymentFilter = paymentSelect.value;
+            
+            let visibleCount = 0;
+            
+            allRows.forEach(row => {
+                const patientName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
+                const appoNum = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase() || '';
+                const service = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+                const status = row.querySelector('.status-badge:not([class*="payment"])')?.textContent.toLowerCase().trim() || '';
+                const payment = row.querySelector('.status-badge[class*="payment"]')?.textContent.toLowerCase().trim() || '';
+                
+                const searchMatch = searchTerm === '' || 
+                                   patientName.includes(searchTerm) || 
+                                   appoNum.includes(searchTerm) || 
+                                   service.includes(searchTerm);
+                
+                const statusMatch = statusFilter === 'all' || status === statusFilter;
+                const paymentMatch = paymentFilter === 'all' || payment === paymentFilter;
+                
+                if (searchMatch && statusMatch && paymentMatch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            if (resultCount) {
+                resultCount.textContent = `${visibleCount} appointment${visibleCount !== 1 ? 's' : ''} found`;
+            }
+            
+            if (tableBody) {
+                if (visibleCount === 0) {
+                    tableBody.style.display = 'none';
+                    if (!document.querySelector('.empty-state-search')) {
+                        const emptyDiv = document.createElement('div');
+                        emptyDiv.className = 'empty-state empty-state-search';
+                        emptyDiv.innerHTML = `
+                            <i class="fas fa-search"></i>
+                            <h3>No Appointments Found</h3>
+                            <p>No appointments match your search criteria.</p>
+                        `;
+                        tableBody.parentElement.appendChild(emptyDiv);
+                    }
+                } else {
+                    tableBody.style.display = '';
+                    document.querySelector('.empty-state-search')?.remove();
+                }
+            }
+        }
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', filterTable);
+            searchInput.addEventListener('paste', () => setTimeout(filterTable, 10));
+        }
+        
+        if (statusSelect) statusSelect.addEventListener('change', filterTable);
+        if (paymentSelect) paymentSelect.addEventListener('change', filterTable);
+        
+        const filterForm = document.querySelector('.filters form');
+        if (filterForm) {
+            filterForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                filterTable();
+            });
+        }
+        
+        window.updateSearchRows = function() {
+            allRows = Array.from(tableBody?.querySelectorAll('tr') || []);
+            filterTable();
+        };
+    }
+
+    // Keep your existing functions...
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('mini');
     }
     
-    // Toggle mobile sidebar
     function toggleMobile() {
         document.getElementById('sidebar').classList.toggle('mobile-open');
     }
     
-    // Toast notification function
     function showToast(message, type = 'success') {
         const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        
         const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-        
-        toast.innerHTML = `
-            <i class="fas ${icon}"></i>
-            <div>${message}</div>
-        `;
-        
+        toast.innerHTML = `<i class="fas ${icon}"></i><div>${message}</div>`;
         container.appendChild(toast);
-        
         setTimeout(() => {
             toast.style.opacity = '0';
-            setTimeout(() => {
-                container.removeChild(toast);
-            }, 300);
+            setTimeout(() => container.removeChild(toast), 300);
         }, 3000);
     }
     
-    // Handle all AJAX action buttons
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.ajax-action')) {
-        e.preventDefault();
-        const button = e.target.closest('.ajax-action');
-        
-        const confirmMessage = button.getAttribute('data-confirm');
-        if (confirmMessage && !confirm(confirmMessage)) {
-            return;
+    // Modified AJAX handler with search update
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.ajax-action')) {
+            e.preventDefault();
+            const button = e.target.closest('.ajax-action');
+            
+            const confirmMessage = button.getAttribute('data-confirm');
+            if (confirmMessage && !confirm(confirmMessage)) return;
+            
+            const action = button.getAttribute('data-action');
+            const appoId = button.getAttribute('data-appo-id');
+            const currentRow = button.closest('tr');
+            
+            button.disabled = true;
+            button.style.opacity = '0.5';
+            
+            const formData = new FormData();
+            formData.append(action, '1');
+            formData.append('appo_id', appoId);
+            
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                const allRows = doc.querySelectorAll('tbody tr');
+                let foundRow = null;
+                
+                allRows.forEach(row => {
+                    const rowAppoId = row.querySelector('.ajax-action')?.getAttribute('data-appo-id');
+                    if (rowAppoId === appoId) foundRow = row;
+                });
+                
+                if (foundRow && currentRow) {
+                    const newStatusBadge = foundRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
+                    const currentStatusBadge = currentRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
+                    if (newStatusBadge && currentStatusBadge) {
+                        currentStatusBadge.className = newStatusBadge.className;
+                        currentStatusBadge.textContent = newStatusBadge.textContent;
+                    }
+                    
+                    const newPaymentBadge = foundRow.querySelector('.payment-paid, .payment-unpaid');
+                    const currentPaymentBadge = currentRow.querySelector('.payment-paid, .payment-unpaid');
+                    if (newPaymentBadge && currentPaymentBadge) {
+                        currentPaymentBadge.className = newPaymentBadge.className;
+                        currentPaymentBadge.textContent = newPaymentBadge.textContent;
+                    }
+                    
+                    const newActions = foundRow.querySelector('.action-buttons');
+                    const currentActions = currentRow.querySelector('.action-buttons');
+                    if (newActions && currentActions) {
+                        currentActions.innerHTML = newActions.innerHTML;
+                    }
+                }
+                
+                const newStats = doc.querySelectorAll('.stat-card .stat-value');
+                const currentStats = document.querySelectorAll('.stat-card .stat-value');
+                newStats.forEach((stat, index) => {
+                    if (currentStats[index]) {
+                        currentStats[index].textContent = stat.textContent;
+                    }
+                });
+                
+                // Update search rows after AJAX action
+                if (window.updateSearchRows) window.updateSearchRows();
+                
+                const successAlert = doc.querySelector('.alert-success');
+                const errorAlert = doc.querySelector('.alert-error');
+                
+                if (successAlert) {
+                    showToast(successAlert.textContent.trim().replace(/\s+/g, ' '), 'success');
+                } else if (errorAlert) {
+                    showToast(errorAlert.textContent.trim().replace(/\s+/g, ' '), 'error');
+                } else {
+                    const messages = {
+                        'mark_paid': '✅ Payment status updated to PAID! You can now approve the appointment.',
+                        'approve_appointment': '✅ Appointment approved successfully!',
+                        'reject_appointment': '✅ Appointment rejected.',
+                        'complete_appointment': '✅ Appointment marked as completed!',
+                        'delete_appointment': '✅ Appointment deleted permanently.'
+                    };
+                    showToast(messages[action] || '✅ Action completed successfully!', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('❌ An error occurred. Please try again.', 'error');
+                button.disabled = false;
+                button.style.opacity = '1';
+            });
         }
-        
-        const action = button.getAttribute('data-action');
-        const appoId = button.getAttribute('data-appo-id');
-        
-        // Get the current row to update it
-        const currentRow = button.closest('tr');
-        
-        button.disabled = true;
-        button.style.opacity = '0.5';
-        
-        const formData = new FormData();
-        formData.append(action, '1');
-        formData.append('appo_id', appoId);
-        
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Update the specific row instead of the entire table
-            const allRows = doc.querySelectorAll('tbody tr');
-            let foundRow = null;
-            
-            allRows.forEach(row => {
-                const rowAppoId = row.querySelector('.ajax-action')?.getAttribute('data-appo-id');
-                if (rowAppoId === appoId) {
-                    foundRow = row;
-                }
-            });
-            
-            if (foundRow && currentRow) {
-                // Update status badge
-                const newStatusBadge = foundRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
-                const currentStatusBadge = currentRow.querySelector('.status-badge.status-pending, .status-badge.status-approved, .status-badge.status-completed, .status-badge.status-rejected');
-                if (newStatusBadge && currentStatusBadge) {
-                    currentStatusBadge.className = newStatusBadge.className;
-                    currentStatusBadge.textContent = newStatusBadge.textContent;
-                }
-                
-                // Update payment badge
-                const newPaymentBadge = foundRow.querySelector('.payment-paid, .payment-unpaid');
-                const currentPaymentBadge = currentRow.querySelector('.payment-paid, .payment-unpaid');
-                if (newPaymentBadge && currentPaymentBadge) {
-                    currentPaymentBadge.className = newPaymentBadge.className;
-                    currentPaymentBadge.textContent = newPaymentBadge.textContent;
-                }
-                
-                // Update action buttons
-                const newActions = foundRow.querySelector('.action-buttons');
-                const currentActions = currentRow.querySelector('.action-buttons');
-                if (newActions && currentActions) {
-                    currentActions.innerHTML = newActions.innerHTML;
-                }
-            }
-            
-            // Update statistics
-            const newStats = doc.querySelectorAll('.stat-card .stat-value');
-            const currentStats = document.querySelectorAll('.stat-card .stat-value');
-            newStats.forEach((stat, index) => {
-                if (currentStats[index]) {
-                    currentStats[index].textContent = stat.textContent;
-                }
-            });
-            
-            // Check for alerts and show toast
-            const successAlert = doc.querySelector('.alert-success');
-            const errorAlert = doc.querySelector('.alert-error');
-            
-            if (successAlert) {
-                const message = successAlert.textContent.trim().replace(/\s+/g, ' ');
-                showToast(message, 'success');
-            } else if (errorAlert) {
-                const message = errorAlert.textContent.trim().replace(/\s+/g, ' ');
-                showToast(message, 'error');
-            } else {
-               const messages = {
-                            'mark_paid': '✅ Payment status updated to PAID! You can now approve the appointment.',
-                            'approve_appointment': '✅ Appointment approved successfully!',
-                            'reject_appointment': '✅ Appointment rejected.',
-                            'complete_appointment': '✅ Appointment marked as completed!',
-                            'delete_appointment': '✅ Appointment deleted permanently.'
-                        };
-                        showToast(messages[action] || '✅ Action completed successfully!', 'success');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('❌ An error occurred. Please try again.', 'error');
-            button.disabled = false;
-            button.style.opacity = '1';
-        });
-    }
-});
+    });
     
-    // Show any initial alerts as toasts
+    // Initialize on page load
     window.addEventListener('DOMContentLoaded', function() {
+        initRealtimeSearch();
+        
         const successAlert = document.querySelector('.alert-success');
         const errorAlert = document.querySelector('.alert-error');
         
         if (successAlert) {
-            const message = successAlert.textContent.trim().replace(/\s+/g, ' ');
-            showToast(message, 'success');
+            showToast(successAlert.textContent.trim().replace(/\s+/g, ' '), 'success');
             successAlert.remove();
         }
         
         if (errorAlert) {
-            const message = errorAlert.textContent.trim().replace(/\s+/g, ' ');
-            showToast(message, 'error');
+            showToast(errorAlert.textContent.trim().replace(/\s+/g, ' '), 'error');
             errorAlert.remove();
         }
     });
     
-    // Close sidebar on mobile when clicking outside
     document.addEventListener('click', function(e) {
         if (window.innerWidth <= 768) {
             const sidebar = document.getElementById('sidebar');

@@ -28,7 +28,6 @@ $success = '';
 if ($_POST) {
     $pname = trim($_POST['pname']);
     $paddress = trim($_POST['paddress']);
-    $pnic = trim($_POST['pnic']);
     $pdob = $_POST['pdob'];
     $ptel = trim($_POST['ptel']);
     $new_password = $_POST['new_password'];
@@ -89,21 +88,21 @@ if ($_POST) {
                 } else {
                     // Update with new password
                     if ($column_exists) {
-                        $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pnic=?, pdob=?, ptel=?, ppassword=?, profile_picture=? WHERE pemail=?");
-                        $stmt->bind_param("ssssssss", $pname, $paddress, $pnic, $pdob, $ptel, $new_password, $profile_picture, $useremail);
+                        $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pdob=?, ptel=?, ppassword=?, profile_picture=? WHERE pemail=?");
+                        $stmt->bind_param("sssssss", $pname, $paddress, $pdob, $ptel, $new_password, $profile_picture, $useremail);
                     } else {
-                        $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pnic=?, pdob=?, ptel=?, ppassword=? WHERE pemail=?");
-                        $stmt->bind_param("sssssss", $pname, $paddress, $pnic, $pdob, $ptel, $new_password, $useremail);
+                        $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pdob=?, ptel=?, ppassword=? WHERE pemail=?");
+                        $stmt->bind_param("ssssss", $pname, $paddress, $pdob, $ptel, $new_password, $useremail);
                     }
                 }
             } else {
                 // Update without password change
                 if ($column_exists) {
-                    $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pnic=?, pdob=?, ptel=?, profile_picture=? WHERE pemail=?");
-                    $stmt->bind_param("sssssss", $pname, $paddress, $pnic, $pdob, $ptel, $profile_picture, $useremail);
+                    $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pdob=?, ptel=?, profile_picture=? WHERE pemail=?");
+                    $stmt->bind_param("ssssss", $pname, $paddress, $pdob, $ptel, $profile_picture, $useremail);
                 } else {
-                    $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pnic=?, pdob=?, ptel=? WHERE pemail=?");
-                    $stmt->bind_param("ssssss", $pname, $paddress, $pnic, $pdob, $ptel, $useremail);
+                    $stmt = $database->prepare("UPDATE patient SET pname=?, paddress=?, pdob=?, ptel=? WHERE pemail=?");
+                    $stmt->bind_param("sssss", $pname, $paddress, $pdob, $ptel, $useremail);
                 }
             }
             
@@ -141,7 +140,10 @@ if ($_POST) {
 </head>
 <body>
     <nav class="navbar">
-        <div class="brand">Dr. Dental Clinic</div>
+        <div class="brand">
+            <img src="/dental-clinic-appointment-system/img/images.png" alt="Logo" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; vertical-align: middle;">
+            Dr. Dental Clinic
+        </div>
         <div class="nav-right">
             <span class="user-info">👤 <?php echo htmlspecialchars($patient['pname']); ?></span>
             <a href="index.php" class="back-btn">← Back to Dashboard</a>
@@ -207,15 +209,9 @@ if ($_POST) {
                     <input type="text" name="paddress" class="input-text" value="<?php echo htmlspecialchars($patient['paddress']); ?>">
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">NIC/ID Number</label>
-                        <input type="text" name="pnic" class="input-text" value="<?php echo htmlspecialchars($patient['pnic']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Date of Birth</label>
-                        <input type="date" name="pdob" class="input-text" value="<?php echo htmlspecialchars($patient['pdob']); ?>">
-                    </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Birth</label>
+                    <input type="date" name="pdob" class="input-text" value="<?php echo htmlspecialchars($patient['pdob']); ?>">
                 </div>
 
                 <div class="form-group">

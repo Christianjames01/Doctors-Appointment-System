@@ -25,8 +25,6 @@ if (isset($_SESSION['user']) && isset($_SESSION['usertype'])) {
             // Only patients can book, redirect others to their dashboard
             if ($_SESSION['usertype'] == 'a') {
                 header('Location: admin/index.php');
-            } elseif ($_SESSION['usertype'] == 'd') {
-                header('Location: doctor/index.php');
             }
             exit();
         }
@@ -37,8 +35,6 @@ if (isset($_SESSION['user']) && isset($_SESSION['usertype'])) {
         header('Location: patient/index.php');
     } elseif ($_SESSION['usertype'] == 'a') {
         header('Location: admin/index.php');
-    } elseif ($_SESSION['usertype'] == 'd') {
-        header('Location: doctor/index.php');
     }
     exit();
 }
@@ -98,26 +94,6 @@ if ($_POST) {
                     $_SESSION['usertype'] = 'a';
                     $_SESSION['username'] = $admin['aname'];
                     header('Location: admin/index.php');
-                    exit();
-                } else {
-                    $error = 'Wrong credentials: Invalid email or password';
-                }
-            }
-            
-        } elseif ($utype == 'd') {
-            // Doctor login
-            $stmt = $database->prepare("SELECT * FROM doctor WHERE docemail = ?");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $checker = $stmt->get_result();
-            
-            if ($checker->num_rows == 1) {
-                $doctor = $checker->fetch_assoc();
-                if ($doctor['docpassword'] === $password) {
-                    $_SESSION['user'] = $email;
-                    $_SESSION['usertype'] = 'd';
-                    $_SESSION['username'] = $doctor['docname'];
-                    header('Location: doctor/index.php');
                     exit();
                 } else {
                     $error = 'Wrong credentials: Invalid email or password';
@@ -366,7 +342,7 @@ if ($_POST) {
         <?php endif; ?>
 
         <div class="user-type-info">
-            <p>💡 Login as Patient, Doctor, or Admin</p>
+            <p>💡 Login as Patient</p>
         </div>
         
         <?php if (!empty($error)): ?>
