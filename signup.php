@@ -9,7 +9,6 @@ if ($_POST) {
     $fname = sanitize_input($_POST['fname']);
     $lname = sanitize_input($_POST['lname']);
     $email = sanitize_input($_POST['email']);
-    $nic = sanitize_input($_POST['nic']);
     $dob = sanitize_input($_POST['dob']);
     $password = $_POST['password'];
     $cpassword = $_POST['cpassword'];
@@ -40,8 +39,9 @@ if ($_POST) {
             if ($stmt->execute()) {
                 // Insert into patient table
                 $name = $fname . " " . $lname;
-                $stmt = $database->prepare("INSERT INTO patient (pemail, pname, ppassword, paddress, pnic, pdob, ptel) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssssss", $email, $name, $password, $address, $nic, $dob, $tel);
+                $password = $password;
+                $stmt = $database->prepare("INSERT INTO patient (pemail, pname, ppassword, paddress, pdob, ptel) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssss", $email, $name, $password, $address, $dob, $tel);
                 
                 if ($stmt->execute()) {
                     $success = 'Registration successful! Redirecting to login...';
@@ -253,15 +253,9 @@ if ($_POST) {
                 <input type="email" id="email" name="email" class="input-text" required>
             </div>
             
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="nic" class="form-label">NIC/ID Number</label>
-                    <input type="text" id="nic" name="nic" class="input-text">
-                </div>
-                <div class="form-group">
-                    <label for="dob" class="form-label">Date of Birth</label>
-                    <input type="date" id="dob" name="dob" class="input-text">
-                </div>
+            <div class="form-group">
+                <label for="dob" class="form-label">Date of Birth</label>
+                <input type="date" id="dob" name="dob" class="input-text">
             </div>
             
             <div class="form-group">

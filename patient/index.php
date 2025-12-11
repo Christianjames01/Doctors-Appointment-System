@@ -1,649 +1,461 @@
+<?php
+session_start();
+include("../connection.php");
+
+if(!isset($_SESSION["user"]) || $_SESSION["user"]=="" || $_SESSION['usertype']!='p'){
+    header("location: ../login.php");
+    exit();
+}
+
+$useremail = $_SESSION["user"];
+$userrow = $database->query("select * from patient where pemail='$useremail'");
+$userfetch = $userrow->fetch_assoc();
+$userid = $userfetch["pid"];
+$username = $userfetch["pname"];
+
+date_default_timezone_set('Asia/Manila');
+$today = date('Y-m-d');
+$currentTime = date('H:i:s');
+
+// Get statistics
+$upcoming_query = $database->query("SELECT COUNT(*) as count FROM appointment WHERE pid='$userid' AND appodate >= NOW()");
+$upcoming_count = $upcoming_query->fetch_assoc()['count'];
+
+$completed_query = $database->query("SELECT COUNT(*) as count FROM appointment WHERE pid='$userid' AND status='completed'");
+$completed_count = $completed_query->fetch_assoc()['count'];
+
+$total_query = $database->query("SELECT COUNT(*) as count FROM appointment WHERE pid='$userid'");
+$total_count = $total_query->fetch_assoc()['count'];
+
+$pending_query = $database->query("SELECT COUNT(*) as count FROM appointment WHERE pid='$userid' AND payment_status='unpaid'");
+$pending_payments = $pending_query->fetch_assoc()['count'];
+
+// Get next appointment
+
+$next_appointment = $database->query("SELECT a.*, s.title as session_title, d.docname 
+    FROM appointment a 
+    LEFT JOIN schedule s ON a.scheduleid = s.scheduleid 
+    LEFT JOIN doctor d ON s.docid = d.doctor_id 
+    WHERE a.pid='$userid' AND a.appodate >= NOW() 
+    ORDER BY a.appodate ASC LIMIT 1");
+$next_appt = $next_appointment->fetch_assoc();
+
+// Lines 44-48 - Get recent appointments
+$recent_appointments = $database->query("SELECT a.*, d.docname 
+    FROM appointment a 
+    LEFT JOIN schedule s ON a.scheduleid = s.scheduleid 
+    LEFT JOIN doctor d ON s.docid = d.doctor_id 
+    WHERE a.pid='$userid' 
+    ORDER BY a.appodate DESC");
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Dashboard - Dr. Dental Clinic</title>
+    <title>Dashboard - Dr. Dental Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/dental-clinic-appointment-system/css/styles.css">
+    <link rel="stylesheet" href="/dental-clinic-appointment-system/css/chatbot.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
         }
 
-        :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --primary-color: #667eea;
-            --secondary-color: #764ba2;
-            --success-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            --text-dark: #2d3748;
-            --text-light: #718096;
-            --bg-light: #f7fafc;
-            --white: #ffffff;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-            --border-radius: 16px;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-            color: var(--text-dark);
-            min-height: 100vh;
-        }
-
-        /* Sidebar */
-        .sidebar {
+        /* Chatbot Styles */
+        .chatbot-container {
             position: fixed;
-            left: 0;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-lg);
-            z-index: 1000;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        .sidebar-header {
-            padding: 30px 25px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .logo {
-            width: 50px;
-            height: 50px;
-            background: var(--primary-gradient);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .chatbot-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
             color: white;
             font-size: 24px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .logo-text {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-dark);
-        }
-
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            border-radius: 12px;
-            border: 2px solid #e2e8f0;
-        }
-
-        .user-avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: var(--primary-gradient);
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .chatbot-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .chatbot-window {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 380px;
+            height: 550px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+
+        .chatbot-window.active {
+            display: flex;
+        }
+
+        .chatbot-window.minimized {
+            height: 60px;
+        }
+
+        .chatbot-window.minimized .chatbot-messages,
+        .chatbot-window.minimized .chatbot-input-container {
+            display: none;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chatbot-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            font-size: 20px;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-
-        .user-info h3 {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 3px;
-        }
-
-        .user-info p {
-            font-size: 13px;
-            color: var(--text-light);
-        }
-
-        .nav-menu {
-            padding: 20px 0;
-        }
-
-        .nav-item {
-            margin: 5px 15px;
-        }
-
-        .nav-link {
+            padding: 20px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            padding: 14px 20px;
-            color: var(--text-light);
-            text-decoration: none;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            font-size: 15px;
-        }
-
-        .nav-link:hover {
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            color: var(--primary-color);
-            transform: translateX(5px);
-        }
-
-        .nav-link.active {
-            background: var(--primary-gradient);
-            color: white;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-
-        .nav-link i {
-            font-size: 18px;
-            width: 20px;
-        }
-
-        .logout-btn {
-            margin: 20px 15px;
-            padding: 14px 20px;
-            background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            width: calc(100% - 30px);
-            transition: all 0.3s ease;
-            font-size: 15px;
-            box-shadow: 0 4px 12px rgba(245, 101, 101, 0.3);
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(245, 101, 101, 0.4);
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 280px;
-            min-height: 100vh;
-            padding: 30px;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            background: var(--white);
-            padding: 30px 35px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 30px;
-            display: flex;
             justify-content: space-between;
-            align-items: center;
-            border: 1px solid #e2e8f0;
         }
 
-        .welcome-section h1 {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 8px;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .welcome-section p {
-            color: var(--text-light);
-            font-size: 15px;
-            line-height: 1.6;
-        }
-
-        .date-section {
-            text-align: right;
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            padding: 15px 20px;
-            border-radius: 12px;
-        }
-
-        .date-label {
-            font-size: 13px;
-            color: var(--text-light);
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        .date-value {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text-dark);
+        .chatbot-header-left {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
+        }
+
+        .chatbot-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .chatbot-header-text h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .chatbot-header-text p {
+            margin: 0;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .chatbot-header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chatbot-header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+
+        .chatbot-header-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .chatbot-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .chatbot-message {
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-bot {
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-user {
+            display: flex;
             justify-content: flex-end;
         }
 
-        .date-value i {
-            color: var(--primary-color);
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            padding: 30px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid #e2e8f0;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: var(--primary-gradient);
-            opacity: 0.05;
+        .message-avatar {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            transform: translate(30%, -30%);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
-        }
-
-        .stat-icon {
-            width: 70px;
-            height: 70px;
-            border-radius: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
-            color: white;
+            font-size: 14px;
             flex-shrink: 0;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
         }
 
-        .stat-icon.doctors { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .stat-icon.patients { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .stat-icon.bookings { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .stat-icon.sessions { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-
-        .stat-info {
-            flex: 1;
-        }
-
-        .stat-info h3 {
-            font-size: 36px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 5px;
-        }
-
-        .stat-info p {
-            color: var(--text-light);
+        .message-content {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 18px;
             font-size: 14px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            line-height: 1.5;
+            white-space: pre-line;
         }
 
-        /* Quick Actions */
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+        .message-bot .message-content {
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 4px;
         }
 
-        .action-card {
-            background: var(--white);
-            padding: 25px;
-            border-radius: var(--border-radius);
-            border: 2px solid #e2e8f0;
-            text-decoration: none;
-            color: var(--text-dark);
-            transition: all 0.3s ease;
+        .message-user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+            padding: 0 16px;
+        }
+
+        .typing-indicator {
             display: flex;
+            gap: 10px;
             align-items: center;
-            gap: 20px;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 18px;
+            width: fit-content;
         }
 
-        .action-card:hover {
-            border-color: var(--primary-color);
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-lg);
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: bounce 1.4s infinite;
         }
 
-        .action-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 12px;
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .chatbot-input-container {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .chatbot-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chatbot-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .chatbot-input:focus {
+            border-color: #667eea;
+        }
+
+        .chatbot-send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            color: white;
-        }
-
-        .action-icon.find { background: var(--primary-gradient); }
-        .action-icon.schedule { background: var(--info-gradient); }
-        .action-icon.bookings { background: var(--warning-gradient); }
-        .action-icon.settings { background: var(--success-gradient); }
-
-        .action-text h3 {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .action-text p {
-            font-size: 13px;
-            color: var(--text-light);
-        }
-
-        /* Appointments Section */
-        .appointments-section {
-            background: var(--white);
-            padding: 35px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            border: 1px solid #e2e8f0;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .section-header h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text-dark);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-header h2 i {
-            color: var(--primary-color);
-        }
-
-        .appointments-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .appointments-table thead {
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-        }
-
-        .appointments-table th {
-            padding: 18px 15px;
-            text-align: left;
-            font-weight: 700;
-            color: var(--text-dark);
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .appointments-table td {
-            padding: 20px 15px;
-            border-bottom: 1px solid #e2e8f0;
-            color: var(--text-dark);
-            font-size: 14px;
-        }
-
-        .appointments-table tbody tr {
             transition: all 0.3s ease;
         }
 
-        .appointments-table tbody tr:hover {
-            background: linear-gradient(135deg, #f7fafc50 0%, #edf2f750 100%);
-            transform: scale(1.01);
+        .chatbot-send-btn:hover {
+            transform: scale(1.1);
         }
 
-        .appoint-num {
-            font-size: 18px;
-            font-weight: 700;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .chatbot-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 6px 12px;
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .quick-reply-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #667eea;
+            color: #667eea;
             border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-confirmed {
-            background: linear-gradient(135deg, #43e97b15 0%, #38f9d715 100%);
-            color: #27ae60;
-            border: 1px solid #27ae60;
-        }
-
-        .status-pending {
-            background: linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%);
-            color: #e74c3c;
-            border: 1px solid #e74c3c;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-        }
-
-        .empty-state i {
-            font-size: 100px;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 25px;
-            opacity: 0.3;
-        }
-
-        .empty-state h3 {
-            font-size: 24px;
-            color: var(--text-dark);
-            margin-bottom: 12px;
-            font-weight: 700;
-        }
-
-        .empty-state p {
-            color: var(--text-light);
-            margin-bottom: 30px;
-            font-size: 15px;
-            line-height: 1.6;
-        }
-
-        .action-btn {
-            padding: 15px 40px;
-            background: var(--primary-gradient);
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 13px;
+            cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 15px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
 
-        .action-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        .quick-reply-btn:hover {
+            background: #667eea;
+            color: white;
         }
 
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .sidebar {
-                transform: translateX(-100%);
+        @media (max-width: 480px) {
+            .chatbot-window {
+                width: calc(100vw - 40px);
+                right: 20px;
+                left: 20px;
+                bottom: 90px;
             }
 
-            .sidebar.active {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            }
-        }
-
-        @media (max-width: 768px) {
-            .top-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 20px;
-            }
-
-            .date-section {
-                width: 100%;
-            }
-
-            .welcome-section h1 {
-                font-size: 24px;
-            }
-
-            .appointments-table {
-                font-size: 13px;
-            }
-
-            .appointments-table th,
-            .appointments-table td {
-                padding: 12px 8px;
-            }
-
-            .stat-info h3 {
-                font-size: 28px;
+            .chatbot-toggle {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
             }
         }
     </style>
 </head>
 <body>
-    <?php
-    session_start();
-
-    if(isset($_SESSION["user"])){
-        if(($_SESSION["user"])=="" or $_SESSION['usertype']!='p'){
-            header("location: ../login.php");
-        }else{
-            $useremail=$_SESSION["user"];
-        }
-    }else{
-        header("location: ../login.php");
-    }
-
-    include("../connection.php");
-    $userrow = $database->query("select * from patient where pemail='$useremail'");
-    $userfetch=$userrow->fetch_assoc();
-    $userid= $userfetch["pid"];
-    $username=$userfetch["pname"];
-
-    date_default_timezone_set('Asia/Manila');
-    $today = date('Y-m-d');
-
-    $patientrow = $database->query("select * from patient;");
-    $doctorrow = $database->query("select * from doctor;");
-    $appointmentrow = $database->query("select * from appointment where appodate>='$today';");
-    $schedulerow = $database->query("select * from schedule where scheduledate='$today';");
-    ?>
-
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-header">
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-left">
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="logo-container">
                 <div class="logo">
-                    <i class="fas fa-tooth"></i>
+                    <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
                 </div>
                 <span class="logo-text">Dr. Dental Clinic</span>
             </div>
-
-            <div class="user-profile">
-                <div class="user-avatar">
+        </div>
+        <div class="user-profile-nav">
+            <?php if (!empty($userfetch['profile_picture']) && file_exists('../' . $userfetch['profile_picture'])): ?>
+                <div class="user-avatar-nav">
+                    <img src="../<?php echo htmlspecialchars($userfetch['profile_picture']); ?>" alt="Profile">
+                </div>
+            <?php else: ?>
+                <div class="user-avatar-nav">
                     <?php echo strtoupper(substr($username, 0, 2)); ?>
                 </div>
-                <div class="user-info">
-                    <h3><?php echo substr($username, 0, 15); ?></h3>
-                    <p><?php echo substr($useremail, 0, 20); ?></p>
-                </div>
+            <?php endif; ?>
+            <div class="user-info-nav">
+                <h4><?php echo htmlspecialchars(substr($username, 0, 20)); ?></h4>
+                <p>Patient</p>
             </div>
         </div>
+    </nav>
 
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
         <nav class="nav-menu">
+            <div class="nav-section-title">Main Menu</div>
             <div class="nav-item">
                 <a href="index.php" class="nav-link active">
                     <i class="fas fa-home"></i>
-                    <span>Home</span>
-                </a>
-            </div>
-            <div class="nav-item">
-                <a href="doctors.php" class="nav-link">
-                    <i class="fas fa-user-md"></i>
-                    <span>All Doctors</span>
+                    <span>Dashboard</span>
                 </a>
             </div>
             <div class="nav-item">
                 <a href="schedule.php" class="nav-link">
                     <i class="fas fa-calendar-alt"></i>
-                    <span>Scheduled Sessions</span>
+                    <span>Available Sessions</span>
+                </a>
+            </div>
+            
+            <div class="nav-section-title">My Appointments</div>
+            <div class="nav-item">
+                <a href="booking.php" class="nav-link">
+                    <i class="fas fa-calendar-plus"></i>
+                    <span>Book Appointment</span>
                 </a>
             </div>
             <div class="nav-item">
-                <a href="booking.php" class="nav-link">
-                    <i class="fas fa-calendar-check"></i>
-                    <span>My Bookings</span>
+                <a href="appointment-history.php" class="nav-link">
+                    <i class="fas fa-history"></i>
+                    <span>Appointment History</span>
                 </a>
             </div>
+            
+            <div class="nav-section-title">Account</div>
             <div class="nav-item">
                 <a href="settings.php" class="nav-link">
                     <i class="fas fa-cog"></i>
@@ -651,177 +463,561 @@
                 </a>
             </div>
         </nav>
-
-        <button class="logout-btn" onclick="window.location.href='../logout.php'">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
+        
+        <div class="logout-section">
+            <button class="logout-btn" onclick="window.location.href='../logout.php'">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
     </aside>
+
+    <!-- Overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="welcome-section">
-                <h1>Welcome back, <?php echo htmlspecialchars($username); ?>! 👋</h1>
-                <p>Here's an overview of your dental appointments and clinic statistics.</p>
-            </div>
-            <div class="date-section">
-                <div class="date-label">Today's Date</div>
-                <div class="date-value">
-                    <i class="fas fa-calendar"></i>
-                    <?php echo date('F j, Y'); ?>
+        <!-- Welcome Card -->
+        <div class="welcome-card">
+            <div class="welcome-content">
+                <h1>Welcome back, <?php echo htmlspecialchars(explode(' ', $username)[0]); ?>! 👋</h1>
+                <p>Here's what's happening with your dental health today</p>
+                <div class="welcome-meta">
+                    <div class="meta-item">
+                        <i class="fas fa-calendar"></i>
+                        <span><?php echo date('l, F j, Y'); ?></span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="current-time"><?php echo date('g:i A'); ?></span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="stats-grid">
+        <!-- Stats Cards -->
+        <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-icon doctors">
-                    <i class="fas fa-user-md"></i>
-                </div>
-                <div class="stat-info">
-                    <h3><?php echo $doctorrow->num_rows; ?></h3>
-                    <p>All Doctors</p>
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value"><?php echo $upcoming_count; ?></div>
+                        <div class="stat-label">Upcoming</div>
+                    </div>
+                    <div class="stat-icon blue">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
                 </div>
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon patients">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="stat-info">
-                    <h3><?php echo $patientrow->num_rows; ?></h3>
-                    <p>All Patients</p>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon bookings">
-                    <i class="fas fa-book-medical"></i>
-                </div>
-                <div class="stat-info">
-                    <h3><?php echo $appointmentrow->num_rows; ?></h3>
-                    <p>New Bookings</p>
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value"><?php echo $completed_count; ?></div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                    <div class="stat-icon green">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
                 </div>
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon sessions">
-                    <i class="fas fa-clock"></i>
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value"><?php echo $total_count; ?></div>
+                        <div class="stat-label">Total Visits</div>
+                    </div>
+                    <div class="stat-icon purple">
+                        <i class="fas fa-hospital"></i>
+                    </div>
                 </div>
-                <div class="stat-info">
-                    <h3><?php echo $schedulerow->num_rows; ?></h3>
-                    <p>Today's Sessions</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value"><?php echo $pending_payments; ?></div>
+                        <div class="stat-label">Pending Payment</div>
+                    </div>
+                    <div class="stat-icon orange">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Quick Actions -->
         <div class="quick-actions">
-            <a href="doctors.php" class="action-card">
-                <div class="action-icon find">
-                    <i class="fas fa-search"></i>
+            <a href="booking.php" class="action-card">
+                <div class="action-icon-large blue">
+                    <i class="fas fa-calendar-plus"></i>
                 </div>
-                <div class="action-text">
-                    <h3>Find a Doctor</h3>
-                    <p>Browse our specialists</p>
-                </div>
+                <h3 class="action-title">Book Appointment</h3>
+                <p class="action-desc">Schedule your next dental visit</p>
             </a>
 
             <a href="schedule.php" class="action-card">
-                <div class="action-icon schedule">
-                    <i class="fas fa-calendar-plus"></i>
+                <div class="action-icon-large purple">
+                    <i class="fas fa-calendar-alt"></i>
                 </div>
-                <div class="action-text">
-                    <h3>View Sessions</h3>
-                    <p>See available appointments</p>
-                </div>
+                <h3 class="action-title">View Sessions</h3>
+                <p class="action-desc">Browse available time slots</p>
             </a>
 
-            <a href="booking.php" class="action-card">
-                <div class="action-icon bookings">
-                    <i class="fas fa-list-check"></i>
+            <a href="appointment-history.php" class="action-card">
+                <div class="action-icon-large green">
+                    <i class="fas fa-history"></i>
                 </div>
-                <div class="action-text">
-                    <h3>My Bookings</h3>
-                    <p>Manage your appointments</p>
-                </div>
+                <h3 class="action-title">My History</h3>
+                <p class="action-desc">View past appointments</p>
             </a>
 
             <a href="settings.php" class="action-card">
-                <div class="action-icon settings">
+                <div class="action-icon-large orange">
                     <i class="fas fa-user-cog"></i>
                 </div>
-                <div class="action-text">
-                    <h3>Settings</h3>
-                    <p>Update your profile</p>
-                </div>
+                <h3 class="action-title">Settings</h3>
+                <p class="action-desc">Update your profile</p>
             </a>
         </div>
 
-        <!-- Upcoming Appointments -->
+        <!-- Recent Appointments -->
         <div class="appointments-section">
             <div class="section-header">
-                <h2><i class="fas fa-calendar-check"></i> Your Upcoming Appointments</h2>
+                <h2 class="section-title">
+                    <i class="fas fa-history"></i>
+                    Recent Appointments
+                </h2>
+                <div class="filter-tabs">
+                    <button class="filter-tab active" onclick="filterAppointments('all')">All</button>
+                    <button class="filter-tab" onclick="filterAppointments('week')">This Week</button>
+                    <button class="filter-tab" onclick="filterAppointments('month')">This Month</button>
+                </div>
             </div>
 
-            <?php
-            $sqlmain = "select * from schedule 
-                       inner join appointment on schedule.scheduleid=appointment.scheduleid 
-                       inner join patient on patient.pid=appointment.pid 
-                       inner join doctor on schedule.docid=doctor.docid  
-                       where patient.pid=$userid and schedule.scheduledate>='$today' 
-                       order by schedule.scheduledate asc";
-            
-            $result = $database->query($sqlmain);
-
-            if($result->num_rows == 0){
-                echo '
-                <div class="empty-state">
-                    <i class="fas fa-calendar-times"></i>
-                    <h3>No Upcoming Appointments</h3>
-                    <p>You don\'t have any scheduled appointments at the moment.<br>Book an appointment with our qualified doctors today!</p>
-                    <a href="schedule.php" class="action-btn">
-                        <i class="fas fa-plus"></i> Schedule an Appointment
-                    </a>
-                </div>';
-            } else {
-                echo '
+            <?php if($recent_appointments->num_rows > 0): ?>
                 <table class="appointments-table">
                     <thead>
                         <tr>
-                            <th><i class="fas fa-hashtag"></i> Appt. No.</th>
-                            <th><i class="fas fa-file-medical"></i> Session Title</th>
-                            <th><i class="fas fa-user-md"></i> Doctor</th>
-                            <th><i class="fas fa-calendar"></i> Date</th>
-                            <th><i class="fas fa-clock"></i> Time</th>
+                            <th>Appt #</th>
+                            <th>Service</th>
+                            <th>Doctor</th>
+                            <th>Date & Time</th>
+                            <th>Status</th>
+                            <th>Payment</th>
                         </tr>
                     </thead>
-                    <tbody>';
-                
-                while($row = $result->fetch_assoc()){
-                    $apponum = $row["apponum"];
-                    $title = $row["title"];
-                    $docname = $row["docname"];
-                    $scheduledate = $row["scheduledate"];
-                    $scheduletime = $row["scheduletime"];
-                    
-                    echo '<tr>
-                        <td><span class="appoint-num">#'.htmlspecialchars($apponum).'</span></td>
-                        <td>'.htmlspecialchars(substr($title, 0, 40)).'</td>
-                        <td><i class="fas fa-user-circle" style="color: var(--primary-color); margin-right: 8px;"></i>'.htmlspecialchars(substr($docname, 0, 25)).'</td>
-                        <td><i class="fas fa-calendar-day" style="color: var(--text-light); margin-right: 8px;"></i>'.date('M j, Y', strtotime($scheduledate)).'</td>
-                        <td><i class="fas fa-clock" style="color: var(--text-light); margin-right: 8px;"></i>'.date('g:i A', strtotime($scheduletime)).'</td>
-                    </tr>';
-                }
-                
-                echo '
+                    <tbody id="appointmentsTableBody">
+                        <?php while($appt = $recent_appointments->fetch_assoc()): ?>
+                        <tr data-date="<?php echo htmlspecialchars($appt['appodate']); ?>">
+                            <td><span class="appoint-num">#<?php echo htmlspecialchars($appt['apponum']); ?></span></td>
+                            <td><?php echo htmlspecialchars($appt['service_type'] ?? 'N/A'); ?></td>
+                            <td><?php echo htmlspecialchars($appt['docname'] ?? 'N/A'); ?></td>
+                            <td>
+                                <?php echo date('M j, Y - g:i A', strtotime($appt['appodate'])); ?>
+                            </td>
+                            <td>
+                                <span class="status-badge <?php echo strtolower($appt['status']); ?>">
+                                    <?php echo ucfirst($appt['status']); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge <?php echo strtolower($appt['payment_status']); ?>">
+                                    <?php echo ucfirst($appt['payment_status']); ?>
+                                </span>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
                     </tbody>
-                </table>';
-            }
-            ?>
+                </table>
+                <div id="noResultsMessage" style="display: none;">
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <i class="fas fa-calendar-times"></i>
+                        </div>
+                        <h3>No Appointments Found</h3>
+                        <p>No appointments found for the selected time period.</p>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-calendar-times"></i>
+                    </div>
+                    <h3>No Appointments Yet</h3>
+                    <p>You haven't booked any appointments. Start by scheduling your first visit!</p>
+                    <a href="booking.php" class="action-btn">
+                        <i class="fas fa-calendar-plus"></i>
+                        Book Now
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
     </main>
+
+   <!-- Chatbot -->
+ <div class="chatbot-container">
+        <button class="chatbot-toggle" onclick="toggleChatbot()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 3 .97 4.29L2 22l5.71-.97C9 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.38 0-2.68-.31-3.85-.85l-.27-.14-2.85.48.48-2.85-.14-.27C4.31 14.68 4 13.38 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z"/>
+                <circle cx="9" cy="12" r="1.5"/>
+                <circle cx="15" cy="12" r="1.5"/>
+                <path d="M12 2.5c-.28 0-.5.22-.5.5v2c0 .28.22.5.5.5s.5-.22.5-.5V3c0-.28-.22-.5-.5-.5z"/>
+            </svg>
+        </button>
+
+        <div class="chatbot-window" id="chatbotWindow">
+            <div class="chatbot-header">
+                <div class="chatbot-header-left">
+                    <div class="chatbot-avatar">
+                        <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+                    </div>
+                    <div class="chatbot-header-text">
+                        <h3>Dr. Dental Clinic Care Assistant</h3>
+                        <p>Online</p>
+                    </div>
+                </div>
+                <div class="chatbot-header-actions">
+                    <button class="chatbot-header-btn" onclick="minimizeChatbot()">
+                        <span style="font-size: 20px;">−</span>
+                    </button>
+                    <button class="chatbot-header-btn" onclick="toggleChatbot()">
+                        <span style="font-size: 18px;">×</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chatbot-messages" id="chatbotMessages">
+                <div class="chatbot-message message-bot">
+                    <div class="message-avatar">
+                        <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+                    </div>
+                    <div>
+                        <div class="message-content">Good day! Welcome to Dr. Dental Clinic. I am your virtual assistant. How may I assist you today?</div>
+                        <div class="quick-replies">
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Services')">Our Services</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Location')">Location</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Hours')">Clinic Hours</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chatbot-input-container">
+                <div class="chatbot-input-wrapper">
+                    <input 
+                        type="text" 
+                        class="chatbot-input" 
+                        id="chatbotInput" 
+                        placeholder="Type your message..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button class="chatbot-send-btn" onclick="sendMessage()">
+                        ➤
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="chatbot-landing.js"></script>
+
+        <div class="chatbot-window" id="chatbotWindow">
+            <div class="chatbot-header">
+                <div class="chatbot-header-left">
+                    <div class="chatbot-avatar">
+                       <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+                    </div>
+                    <div class="chatbot-header-text">
+                        <h3>Dr. Dental Assistant</h3>
+                        <p>Online</p>
+                    </div>
+                </div>
+                <div class="chatbot-header-actions">
+                    <button class="chatbot-header-btn" onclick="minimizeChatbot()">
+                        <span style="font-size: 20px;">−</span>
+                    </button>
+                    <button class="chatbot-header-btn" onclick="toggleChatbot()">
+                        <span style="font-size: 18px;">×</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chatbot-messages" id="chatbotMessages">
+                <div class="chatbot-message message-bot">
+                    <div class="message-avatar">
+                    <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+                    </div>
+                    <div>
+                        <div class="message-content">Good day! Welcome to Dr. Dental Clinic. I am your virtual assistant. How may I assist you today?</div>
+                        <div class="quick-replies">
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Services')">Our Services</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Location')">Location</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Hours')">Clinic Hours</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chatbot-input-container">
+                <div class="chatbot-input-wrapper">
+                    <input 
+                        type="text" 
+                        class="chatbot-input" 
+                        id="chatbotInput" 
+                        placeholder="Type your message..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button class="chatbot-send-btn" onclick="sendMessage()">
+                        ➤
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+<script>
+    // Update time every minute
+    setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeStr;
+        }
+    }, 60000);
+
+    // Toggle sidebar for mobile
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    }
+
+    // Filter appointments function
+    function filterAppointments(filter) {
+        const rows = document.querySelectorAll('#appointmentsTableBody tr');
+        const tabs = document.querySelectorAll('.filter-tab');
+        const table = document.querySelector('.appointments-table');
+        const noResultsMsg = document.getElementById('noResultsMessage');
+        
+        tabs.forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+        
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const dateStr = row.getAttribute('data-date');
+            const appointmentDate = new Date(dateStr);
+            let shouldShow = false;
+            
+            if (filter === 'all') {
+                shouldShow = true;
+            } else if (filter === 'week') {
+                shouldShow = appointmentDate >= startOfWeek && appointmentDate <= endOfWeek;
+            } else if (filter === 'month') {
+                shouldShow = appointmentDate >= startOfMonth && appointmentDate <= endOfMonth;
+            }
+            
+            if (shouldShow) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        if (visibleCount === 0) {
+            table.style.display = 'none';
+            noResultsMsg.style.display = 'block';
+        } else {
+            table.style.display = 'table';
+            noResultsMsg.style.display = 'none';
+        }
+    }
+
+function toggleChatbot() {
+    const chatbot = document.getElementById('chatbotWindow');
+    chatbot.classList.toggle('active');
+    chatbot.classList.remove('minimized');
+    if (chatbot.classList.contains('active')) {
+        document.getElementById('chatbotInput').focus();
+    }
+}
+
+function minimizeChatbot() {
+    const chatbot = document.getElementById('chatbotWindow');
+    chatbot.classList.toggle('minimized');
+}
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendMessage();
+    }
+}
+
+function sendQuickReply(text) {
+    document.getElementById('chatbotInput').value = text;
+    sendMessage();
+}
+
+function sendMessage() {
+    const input = document.getElementById('chatbotInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    addMessage('user', message);
+    input.value = '';
+    
+    showTypingIndicator();
+    
+    setTimeout(() => {
+        hideTypingIndicator();
+        const response = getBotResponse(message);
+        addMessage('bot', response, true); // Add quick replies after bot response
+    }, 1000);
+}
+
+function addMessage(type, text, showQuickReplies = false) {
+    const messagesContainer = document.getElementById('chatbotMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chatbot-message message-${type}`;
+    
+    if (type === 'bot') {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+            </div>
+            <div>
+                <div class="message-content">${text}</div>
+                ${showQuickReplies ? `
+                <div class="quick-replies">
+                    <button class="quick-reply-btn" onclick="sendQuickReply('Services')">Our Services</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('Location')">Location</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('Hours')">Clinic Hours</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('Book Appointment')">Book Appointment</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('Contact')">Contact Us</button>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="message-content">${text}</div>
+        `;
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showTypingIndicator() {
+    const messagesContainer = document.getElementById('chatbotMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chatbot-message message-bot';
+    typingDiv.id = 'typingIndicator';
+    typingDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="/dental-clinic-appointment-system/img/images.png" alt="Dr. Dental Clinic Logo">
+        </div>
+        <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+    `;
+    messagesContainer.appendChild(typingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function hideTypingIndicator() {
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+function getBotResponse(message) {
+    const lowerMessage = message.toLowerCase();
+    
+    // Greetings
+    if (lowerMessage.match(/\b(hello|hi|hey|good morning|good afternoon|good evening|greetings)\b/)) {
+        return "Good day! Welcome to Dr. Dental Clinic Care. How may I be of assistance to you today?";
+    }
+    
+    // Services
+    if (lowerMessage.match(/\b(service|services|treatment|treatments|procedure|procedures|what do you offer|what can you do)\b/)) {
+        return "Dr. Dental Clinic Care offers a comprehensive range of dental services including:\n\n• General Dentistry (Check-ups, Cleanings)\n• Teeth Whitening\n• Dental Crowns and Bridges\n• Root Canal Treatment\n• Tooth Extraction\n• Orthodontics (Braces)\n• Dental Implants\n• Cosmetic Dentistry\n\nWould you like more information about any specific service?";
+    }
+    
+    // Booking/Appointment
+    if (lowerMessage.match(/\b(book|appointment|schedule|reservation|make appointment|set appointment)\b/)) {
+        return "To book an appointment at Dr. Dental Clinic Care:\n\n1. Visit our website and create an account\n2. Log in to your patient portal\n3. Navigate to 'Book Appointment'\n4. Select your preferred service type\n5. Choose an available date and time slot\n6. Confirm your appointment details\n\nFor immediate assistance, please call our clinic during business hours.";
+    }
+    
+    // Hours
+    if (lowerMessage.match(/\b(hours|time|schedule|open|close|working hours|operating hours)\b/)) {
+        return "Dr. Dental Clinic Care operates during the following hours:\n\nMonday - Saturday: 8:00 AM - 5:00 PM\n\nWe recommend booking an appointment in advance to ensure your preferred time slot is available.";
+    }
+    
+    // Location
+    if (lowerMessage.match(/\b(location|address|where|find|directions|situated)\b/)) {
+        return "Dr. Dental Clinic Care is conveniently located at:\n\nPonciano Street, Davao City\nPhilippines\n\nWe are easily accessible and have parking facilities available for our patients. For detailed directions, please contact our reception desk or use your preferred navigation app.";
+    }
+    
+    // Contact
+    if (lowerMessage.match(/\b(contact|phone|call|email|reach)\b/)) {
+        return "You may contact Dr. Dental Clinic Care through:\n\n• Visit our clinic during business hours\n• Call us for immediate assistance\n• Email us through our website contact form\n• Use this chatbot for general inquiries\n\nOur friendly staff will be happy to assist you with any questions or concerns.";
+    }
+    
+    // Payment
+    if (lowerMessage.match(/\b(payment|cost|price|fee|charge|insurance|accept)\b/)) {
+        return "Dr. Dental Clinic Care accepts various payment methods:\n\n• Cash\n• Credit/Debit Cards\n• Gcash\n• Payment Plans (for major procedures)\n\nFor specific pricing information, please contact our reception desk. We believe in transparent pricing and will provide detailed cost estimates before any treatment.";
+    }
+    
+    // Emergency
+    if (lowerMessage.match(/\b(emergency|urgent|pain|toothache|bleeding|swelling)\b/)) {
+        return "For dental emergencies:\n\n• During business hours: Visit our clinic immediately or call us\n• After hours: Please proceed to the nearest hospital emergency room\n\nCommon dental emergencies:\n• Severe toothache\n• Broken or knocked-out teeth\n• Uncontrolled bleeding\n• Jaw injuries\n• Severe swelling\n\nWe prioritize emergency cases and will accommodate you as soon as possible.";
+    }
+    
+    // Doctors/Staff
+    if (lowerMessage.match(/\b(doctor|doctors|dentist|dentists|staff|team)\b/)) {
+        return "Dr. Dental Clinic Care has a team of experienced and qualified dental professionals dedicated to providing excellent care. Our team includes specialists in various fields of dentistry to ensure you receive comprehensive treatment.\n\nYou can learn more about our team on our website or by visiting our clinic.";
+    }
+    
+    // Thank you
+    if (lowerMessage.match(/\b(thank|thanks|appreciate)\b/)) {
+        return "You are most welcome! It is our pleasure to assist you. Should you require any further assistance, please do not hesitate to reach out. Dr. Dental Clinic Care is committed to providing you with excellent dental care and service.";
+    }
+    
+    // Goodbye
+    if (lowerMessage.match(/\b(bye|goodbye|see you|take care)\b/)) {
+        return "Thank you for contacting Dr. Dental Clinic Care. We wish you good health and look forward to serving you. Have a pleasant day!";
+    }
+    
+    // Help
+    if (lowerMessage.match(/\b(help|assist|support)\b/)) {
+        return "I am here to assist you with information about:\n\n• Our dental services\n• Clinic hours and location\n• Booking appointments\n• Payment options\n• Emergency procedures\n• General inquiries\n\nPlease feel free to ask me any questions!";
+    }
+    
+    // Default response
+    return "Thank you for your inquiry. I apologize, but I may not have fully understood your question. Could you please rephrase it, or would you like to know about:\n\n• Our Services\n• Clinic Hours\n• Location\n• Booking Appointments\n• Payment Methods\n\nAlternatively, you may contact our clinic directly for more specific assistance.";
+}
+</script>
+<script src="chatbot-landing.js"></script>
 </body>
 </html>

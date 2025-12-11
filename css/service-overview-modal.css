@@ -1,0 +1,359 @@
+/* Service Overview Modal Styles - UPDATED VERSION */
+.service-overview-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.service-overview-modal.active {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 16px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    transform: translateY(50px);
+    transition: transform 0.3s ease;
+}
+
+.service-overview-modal.active .modal-content {
+    transform: translateY(0);
+}
+
+/* Modal Header */
+.modal-header {
+    padding: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px 16px 0 0;
+    position: relative;
+}
+
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 20px;
+    z-index: 1;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.modal-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.modal-service-icon {
+    font-size: 48px;
+    line-height: 1;
+}
+
+.modal-service-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.modal-service-price {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 10px 0 0 0;
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 20px;
+    border-radius: 25px;
+}
+
+.modal-body {
+    padding: 30px;
+}
+
+.overview-section {
+    margin-bottom: 25px;
+}
+
+.overview-section:last-child {
+    margin-bottom: 0;
+}
+
+.overview-heading {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.overview-heading i {
+    color: #667eea;
+    font-size: 20px;
+}
+
+.overview-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #555;
+    margin: 0;
+}
+
+.benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.benefits-list li {
+    padding: 10px 0;
+    padding-left: 30px;
+    position: relative;
+    font-size: 15px;
+    color: #555;
+    line-height: 1.6;
+}
+
+.benefits-list li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #10b981;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.duration-info {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.duration-item {
+    flex: 1;
+    min-width: 150px;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.duration-label {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.duration-value {
+    font-size: 18px;
+    color: #333;
+    font-weight: 600;
+}
+
+.modal-footer {
+    padding: 20px 30px;
+    background: #f8f9fa;
+    border-radius: 0 0 16px 16px;
+    display: flex;
+    gap: 15px;
+}
+
+.modal-book-btn,
+.modal-cancel-btn {
+    flex: 1;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.modal-book-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.modal-book-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.modal-cancel-btn {
+    background: white;
+    color: #666;
+    border: 2px solid #e5e7eb;
+}
+
+.modal-cancel-btn:hover {
+    background: #f8f9fa;
+    border-color: #d1d5db;
+}
+
+/* ===================================================
+   SERVICE CARD BUTTONS - BOTH SAME STYLE AND SIZE
+   =================================================== */
+
+.service-card-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.quick-book-btn,
+.view-overview-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.quick-book-btn:hover,
+.view-overview-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.quick-book-btn:active,
+.view-overview-btn:active {
+    transform: scale(0.98);
+}
+
+/* Icon animation */
+.quick-book-btn i,
+.view-overview-btn i {
+    font-size: 13px;
+    transition: transform 0.3s ease;
+}
+
+.quick-book-btn:hover i,
+.view-overview-btn:hover i {
+    transform: scale(1.1);
+}
+
+/* Focus state for accessibility */
+.quick-book-btn:focus,
+.view-overview-btn:focus {
+    outline: 3px solid rgba(102, 126, 234, 0.3);
+    outline-offset: 2px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .modal-header {
+        padding: 20px;
+    }
+    
+    .modal-service-icon {
+        font-size: 36px;
+    }
+    
+    .modal-service-title {
+        font-size: 22px;
+    }
+    
+    .modal-service-price {
+        font-size: 20px;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+        padding: 15px 20px;
+    }
+    
+    .duration-info {
+        flex-direction: column;
+    }
+    
+    .duration-item {
+        min-width: 100%;
+    }
+    
+    .service-card-actions {
+        flex-direction: column;
+    }
+    
+    .quick-book-btn,
+    .view-overview-btn {
+        width: 100%;
+    }
+}
+
+/* Scrollbar Styling for Modal */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}
